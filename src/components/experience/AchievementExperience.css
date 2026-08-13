@@ -154,7 +154,13 @@
 .settings-categories { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 30px; }
 .settings-categories article, .settings-categories > button { display: flex; height: 66px; box-sizing: border-box; align-items: center; justify-content: space-between; padding: 0 22px; background: white; border: 1px solid #efebe6; border-radius: 17px; box-shadow: 0 10px 24px rgba(70,57,46,.05); }
 .settings-categories article > svg { color: #aaa199; }
+.settings-categories article > span:last-child { color: #aaa199; font-size: .64rem; }
 .settings-categories > button { justify-content: center; gap: 8px; color: #958c84; background: transparent; border-style: dashed; cursor: pointer; }
+.settings-note { margin: 24px 12px 0; color: #9b928a; font-size: .76rem; line-height: 1.8; }
+.archive-list { display: grid; gap: 12px; margin-top: 24px; }
+.archive-list article { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 20px; background: white; border: 1px solid #efebe6; border-radius: 15px; }
+.archive-list span { min-width: 0; overflow: hidden; color: #6f655d; text-overflow: ellipsis; white-space: nowrap; }
+.archive-list button { flex: none; padding: 8px 13px; color: #766b63; background: #faf7f4; border: 1px solid #ebe4de; border-radius: 999px; cursor: pointer; }
 .reminder-row { display: flex; align-items: center; justify-content: space-between; padding: 15px 12px; }
 .reminder-row strong { font-family: "Songti SC", serif; }
 .reminder-row p { margin: 6px 0 0; color: #9b928a; font-size: .68rem; }
@@ -194,7 +200,6 @@
   .win-brand strong { font-size: 1rem; }
   .win-brand i, .win-brand b { display: none; }
   .win-header__actions { gap: 6px; }
-  .win-header__actions > .win-icon-button:last-child { display: none; }
   .win-reference { display: none; }
   .win-canvas { padding: 62px 0 50px; }
   .win-period-nav { bottom: 0; left: 0; }

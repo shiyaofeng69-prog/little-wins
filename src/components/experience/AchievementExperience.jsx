@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, Code2, Download,
-  Edit3, Heart, Image as ImageIcon, Loader2, LogOut, MoreHorizontal, Plus,
-  Settings, Share2, Sparkles, Trash2, UploadCloud, UserRound, X,
+  Edit3, Heart, Image as ImageIcon, Loader2, LogOut, Plus,
+  Settings, Sparkles, Trash2, UploadCloud, UserRound, X,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/ToastProvider';
@@ -20,15 +20,21 @@ const PERIODS = [
   { key: 'year', label: '今年', title: '年度回顾' },
 ];
 const META_KEY = 'little-wins:achievement-meta:v1';
-const PREF_KEY = 'little-wins:preferences:v1';
 const LEGACY_META_KEY = 'micro-wins:achievement-meta:v1';
-const LEGACY_PREF_KEY = 'micro-wins:preferences:v1';
+const periodKeys = new Set(PERIODS.map((item) => item.key));
 
 const readJson = (key, fallback) => {
   try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; }
 };
-const dateOf = (entry) => new Date(entry.created_at || entry.time || `${entry.date}T12:00:00`);
+const dateOf = (entry) => {
+  const date = new Date(entry.created_at || entry.time || `${entry.date}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 const dateKey = (date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+const localDateIso = (date = new Date()) => {
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+};
 const startFor = (period) => {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
@@ -38,7 +44,7 @@ const startFor = (period) => {
   if (period === 'year') start.setMonth(0, 1);
   return start;
 };
-const formatTime = (entry) => dateOf(entry).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+const formatTime = (entry) => dateOf(entry)?.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }) || '--:--';
 
 function Brand({ pageTitle }) {
   return (
@@ -132,13 +138,16 @@ function CollectionBoard({ entries, meta, onOpen, period }) {
 function YearReview({ entries, meta }) {
   const year = new Date().getFullYear();
   const counts = WIN_CATEGORIES.map((category) => ({ category, count: entries.filter((entry) => (meta[entry.id]?.category || classifyWin(entry).category.key) === category.key).length })).filter((item) => item.count);
-  const activeDays = new Set(entries.map((entry) => dateKey(dateOf(entry)))).size;
-  const dayDots = Array.from({ length: 186 }, () => null);
+  const activeDays = new Set(entries.map((entry) => dateOf(entry)).filter(Boolean).map(dateKey)).size;
+  const daysInYear = Math.round((new Date(year + 1, 0, 1) - new Date(year, 0, 1)) / 86400000);
+  const dayDots = Array.from({ length: daysInYear }, () => null);
   entries.forEach((entry) => {
     const date = dateOf(entry);
-    const yearStart = new Date(date.getFullYear(), 0, 1);
-    const dayOfYear = Math.floor((date - yearStart) / 86400000);
-    dayDots[Math.min(185, Math.floor((dayOfYear / 365) * 186))] = entry;
+    if (!date) return;
+    const dayOfYear = Math.floor(
+      (Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) - Date.UTC(year, 0, 1)) / 86400000,
+    );
+    if (dayOfYear >= 0 && dayOfYear < daysInYear) dayDots[dayOfYear] = entry;
   });
   const cared = counts.find((item) => item.category.key === 'self-care')?.count || 0;
   return (
@@ -161,8 +170,8 @@ function YearReview({ entries, meta }) {
   );
 }
 
-function EmptyBoard({ onCompose }) {
-  return <div className="win-empty"><Sparkles /><h2>你的第一束微光，正在等你。</h2><p>起床、喝水、回复消息——都可以是一件值得记住的事。</p><button onClick={onCompose}>记下第一个做到 <ArrowRight size={16} /></button></div>;
+function EmptyBoard({ onCompose, hasOtherEntries }) {
+  return <div className="win-empty"><Sparkles /><h2>{hasOtherEntries ? '这段时间还没有贴纸。' : '你的第一束微光，正在等你。'}</h2><p>{hasOtherEntries ? '可以换一个时间范围看看，也可以记下此刻的小小做到。' : '起床、喝水、回复消息——都可以是一件值得记住的事。'}</p><button onClick={onCompose}>记下一个做到 <ArrowRight size={16} /></button></div>;
 }
 
 function ComposeModal({ onClose, onSaved, initialCategory }) {
@@ -173,14 +182,19 @@ function ComposeModal({ onClose, onSaved, initialCategory }) {
   const { show } = useToast();
   const inferred = content.trim() ? classifyWin({ content }).category.key : '';
   const effectiveCategory = category || inferred;
+  useEffect(() => {
+    const closeOnEscape = (event) => event.key === 'Escape' && onClose();
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
   const save = async (event) => {
     event.preventDefault();
     if (!content.trim() || saving) return;
     setSaving(true);
     const now = new Date();
     try {
-      const response = await apiService.createMoodEntry({ mood: 4, date: now.toISOString().slice(0, 10), time: now.toISOString(), content: content.trim(), selected_options: [] });
-      const entry = { id: response.entry_id, mood: 4, date: now.toISOString().slice(0, 10), time: now.toISOString(), created_at: now.toISOString(), content: content.trim(), selections: [] };
+      const response = await apiService.createMoodEntry({ mood: 4, date: localDateIso(now), time: now.toISOString(), content: content.trim(), category: effectiveCategory, feeling: feeling.trim(), selected_options: [] });
+      const entry = response.entry || { id: response.entry_id, mood: 4, date: localDateIso(now), created_at: now.toISOString(), content: content.trim(), category: effectiveCategory, feeling: feeling.trim(), selections: [] };
       onSaved(entry, { category: effectiveCategory, feeling: feeling.trim() });
       show('已经替你收好了。这件事值得被记住。', 'success');
     } catch (error) {
@@ -191,9 +205,9 @@ function ComposeModal({ onClose, onSaved, initialCategory }) {
   };
   return (
     <div className="win-modal-layer" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <form className="compose-modal" onSubmit={save}>
+      <form className="compose-modal" onSubmit={save} role="dialog" aria-modal="true" aria-labelledby="compose-title">
         <button type="button" className="modal-close" onClick={onClose} aria-label="关闭"><X /></button>
-        <div className="modal-title"><i /><div><h2>记下一个小胜利</h2><p>此时此刻，什么让你感到自己“做到了”？</p></div></div>
+        <div className="modal-title"><i /><div><h2 id="compose-title">记下一个小胜利</h2><p>此时此刻，什么让你感到自己“做到了”？</p></div></div>
         <label>描述这一瞬间 <span>/ DESCRIPTION</span></label>
         <textarea autoFocus value={content} onChange={(event) => setContent(event.target.value)} placeholder="写下你的小成就…" rows={5} maxLength={800} />
         <label>我们替你整理到 <span>/ CATEGORY</span></label>
@@ -202,7 +216,7 @@ function ComposeModal({ onClose, onSaved, initialCategory }) {
         </div>
         <small className="auto-note">先写内容，我们会自动分类；你也可以轻轻修正。</small>
         <label>当时的感受 <span>/ FEELING · 可选</span></label>
-        <div className="feeling-input"><input value={feeling} onChange={(event) => setFeeling(event.target.value)} placeholder="那个时刻，我觉得…" /><ImageIcon size={18} /></div>
+        <div className="feeling-input"><input value={feeling} maxLength={300} onChange={(event) => setFeeling(event.target.value)} placeholder="那个时刻，我觉得…" /></div>
         <footer><span><Clock3 size={14} /> 今天，{new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span><button type="submit" disabled={!content.trim() || saving}>{saving ? <Loader2 className="spin" /> : <Sparkles size={16} />}保存这个瞬间</button></footer>
       </form>
     </div>
@@ -215,6 +229,12 @@ function DetailModal({ entry, meta, onClose, onUpdate, onArchive, onCelebrate })
   const [saving, setSaving] = useState(false);
   const inferred = classifyWin(entry);
   const category = WIN_CATEGORIES.find((item) => item.key === meta?.category) || inferred.category;
+  const { show } = useToast();
+  useEffect(() => {
+    const closeOnEscape = (event) => event.key === 'Escape' && onClose();
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
   const save = async () => {
     if (!content.trim()) return;
     setSaving(true);
@@ -222,23 +242,27 @@ function DetailModal({ entry, meta, onClose, onUpdate, onArchive, onCelebrate })
       const response = await apiService.updateMoodEntry(entry.id, { content: content.trim() });
       onUpdate({ ...entry, ...(response.entry || {}), content: content.trim() });
       setEditing(false);
+      show('修改已经保存。', 'success');
+    } catch (error) {
+      console.error(error);
+      show('修改暂时没有保存，请再试一次。', 'error');
     } finally { setSaving(false); }
   };
   return (
     <div className="win-modal-layer" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <article className="detail-modal">
+      <article className="detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-title">
         <button className="modal-close" onClick={onClose} aria-label="关闭"><X /></button>
         <div className="detail-photo"><div><ImageIcon /></div><span /></div>
         <div className="detail-copy">
           <div className="detail-copy__meta"><CategoryPill category={category} /><span>今天 {formatTime(entry)} 记录</span></div>
-          <h2>{inferred.title}</h2>
-          {editing ? <textarea value={content} onChange={(event) => setContent(event.target.value)} rows={7} /> : <p>{entry.content}</p>}
+          <h2 id="detail-title">{inferred.title}</h2>
+          {editing ? <textarea value={content} maxLength={800} onChange={(event) => setContent(event.target.value)} rows={7} /> : <p>{entry.content}</p>}
           {meta?.feeling && <blockquote>“{meta.feeling}”</blockquote>}
           <div className="detail-reflection"><span>THIS MOMENT</span><strong>{inferred.encouragement}</strong></div>
         </div>
         <footer>
           <div>{editing ? <button onClick={save} disabled={saving}><Check />保存修改</button> : <button onClick={() => setEditing(true)}><Edit3 />编辑内容</button>}<button onClick={onArchive}><Trash2 />移入存档</button></div>
-          <div><button className={`celebrate-button ${meta?.celebrated ? 'is-active' : ''}`} onClick={onCelebrate}><Sparkles />{meta?.celebrated ? '已珍藏这一刻' : '庆祝这一刻'}</button><button aria-label="分享"><Share2 /></button></div>
+          <div><button className={`celebrate-button ${meta?.celebrated ? 'is-active' : ''}`} onClick={onCelebrate}><Sparkles />{meta?.celebrated ? '已珍藏这一刻' : '庆祝这一刻'}</button></div>
         </footer>
       </article>
     </div>
@@ -257,18 +281,20 @@ function Onboarding({ onBegin, onSkip }) {
   );
 }
 
-function SettingsPage({ entries, preferences, setPreferences }) {
+function SettingsPage({ entries, meta, onRestore }) {
   const exportData = () => {
-    const blob = new Blob([JSON.stringify(entries, null, 2)], { type: 'application/json' });
+    const completeEntries = entries.map((entry) => ({ ...entry, ...meta[entry.id] }));
+    const blob = new Blob([JSON.stringify({ version: 1, exported_at: new Date().toISOString(), entries: completeEntries }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a'); anchor.href = url; anchor.download = '小小做到-我的成就.json'; anchor.click(); URL.revokeObjectURL(url);
   };
-  const toggle = (key) => setPreferences((current) => ({ ...current, [key]: !current[key] }));
+  const archivedEntries = entries.filter((entry) => entry.archived_at || meta[entry.id]?.archived);
   return (
     <main className="settings-page">
-      <section><h2>分类管理</h2><div className="settings-categories">{WIN_CATEGORIES.map((category) => <article key={category.key}><CategoryPill category={category} /><MoreHorizontal /></article>)}<button><Plus />添加新分类</button></div></section>
-      <section><h2>温柔提醒</h2><div className="reminder-row"><div><strong>晨间回顾</strong><p>在上午 08:30 提醒你记录昨天的微小成就</p></div><button className={`switch ${preferences.morning ? 'is-on' : ''}`} onClick={() => toggle('morning')}><i /></button></div><div className="reminder-row"><div><strong>晚间温柔</strong><p>在下午 21:00 邀请你进行今天的正向反馈</p></div><button className={`switch ${preferences.evening ? 'is-on' : ''}`} onClick={() => toggle('evening')}><i /></button></div></section>
-      <section><h2>数据、隐私与开源</h2><div className="data-cards"><button onClick={exportData}><Download /><strong>导出我的成就</strong><span>下载 JSON 格式，只属于你</span></button><article><UploadCloud /><strong>云端同步</strong><span>记录已安全保存在当前账户</span></article><a href="https://github.com/shiyaofeng69-prog/little-wins" target="_blank" rel="noreferrer"><Code2 /><strong>查看对应源码</strong><span>AGPL-3.0 · 修改与来源说明</span></a></div></section>
+      <section><h2>自动分类</h2><div className="settings-categories">{WIN_CATEGORIES.map((category) => <article key={category.key}><CategoryPill category={category} /><span>固定分类</span></article>)}</div></section>
+      <section><h2>存档</h2>{archivedEntries.length === 0 ? <p className="settings-note">还没有存档的记录。</p> : <div className="archive-list">{archivedEntries.map((entry) => <article key={entry.id}><span>{classifyWin(entry).title}</span><button onClick={() => onRestore(entry)}>恢复到看板</button></article>)}</div>}</section>
+      <section><h2>温柔提醒</h2><p className="settings-note">系统通知仍在规划中；正式可用前不会显示无效开关。</p></section>
+      <section><h2>数据、隐私与开源</h2><div className="data-cards"><button onClick={exportData}><Download /><strong>导出完整记录</strong><span>包含分类、感受、珍藏和存档状态</span></button><article><UploadCloud /><strong>账户同步</strong><span>记录与整理信息已保存在当前账户</span></article><a href="https://github.com/shiyaofeng69-prog/little-wins" target="_blank" rel="noreferrer"><Code2 /><strong>查看对应源码</strong><span>AGPL-3.0 · 修改与来源说明</span></a></div></section>
       <footer>小小做到 · Little Wins · Version 0.2.0<br /><span>基于 Nightlio 的开源工程基础重新设计。记录不是为了终点，而是为了感知一路走来的每一步。</span></footer>
     </main>
   );
@@ -278,40 +304,105 @@ export default function AchievementExperience() {
   const location = useLocation();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const { pastEntries, setPastEntries, loading, error } = useMoodData();
-  const [meta, setMeta] = useState(() => readJson(META_KEY, readJson(LEGACY_META_KEY, {})));
-  const [preferences, setPreferences] = useState(() => readJson(PREF_KEY, readJson(LEGACY_PREF_KEY, { morning: true, evening: false })));
-  const [onboarded, setOnboarded] = useState(() => (localStorage.getItem('little-wins:onboarded') || localStorage.getItem('micro-wins:onboarded')) === 'true');
+  const { user } = useAuth();
+  const { show } = useToast();
+  const { pastEntries, setPastEntries, loading, error, refreshHistory } = useMoodData();
+  const [meta, setMeta] = useState({});
+  const [metaLoaded, setMetaLoaded] = useState(false);
+  const migrationStarted = useRef(false);
+  const onboardingKey = user?.id ? `little-wins:onboarded:user:${user.id}` : 'little-wins:onboarded';
+  const [onboarded, setOnboarded] = useState(() => (localStorage.getItem(onboardingKey) || localStorage.getItem('little-wins:onboarded') || localStorage.getItem('micro-wins:onboarded')) === 'true');
   const isSettings = location.pathname.endsWith('/settings');
-  const period = params.get('period') || 'today';
+  const requestedPeriod = params.get('period') || 'today';
+  const period = periodKeys.has(requestedPeriod) ? requestedPeriod : 'today';
   const selectedId = params.get('achievement');
-  const visibleEntries = useMemo(() => pastEntries.filter((entry) => !meta[entry.id]?.archived && dateOf(entry) >= startFor(period)).sort((a, b) => dateOf(a) - dateOf(b)), [pastEntries, meta, period]);
+  const visibleEntries = useMemo(() => pastEntries.filter((entry) => { const date = dateOf(entry); return date && !entry.archived_at && !meta[entry.id]?.archived && date >= startFor(period) && date <= new Date(); }).sort((a, b) => dateOf(a) - dateOf(b)), [pastEntries, meta, period]);
   const selectedEntry = pastEntries.find((entry) => String(entry.id) === selectedId);
-  useEffect(() => { localStorage.setItem(META_KEY, JSON.stringify(meta)); }, [meta]);
-  useEffect(() => { localStorage.setItem(PREF_KEY, JSON.stringify(preferences)); }, [preferences]);
+  const scopedMetaKey = user?.id ? `${META_KEY}:user:${user.id}` : META_KEY;
+  const serverMetaMigrationKey = user?.id ? `little-wins:server-meta-migration:v1:user:${user.id}` : null;
+  useEffect(() => {
+    const scoped = readJson(scopedMetaKey, null);
+    if (scoped) {
+      setMeta(scoped);
+      setMetaLoaded(true);
+      return;
+    }
+    const legacy = readJson(META_KEY, readJson(LEGACY_META_KEY, {}));
+    setMeta(legacy);
+    if (user?.id) {
+      localStorage.setItem(scopedMetaKey, JSON.stringify(legacy));
+      localStorage.removeItem(META_KEY);
+      localStorage.removeItem(LEGACY_META_KEY);
+    }
+    setMetaLoaded(true);
+  }, [scopedMetaKey, user?.id]);
+  useEffect(() => {
+    if (!pastEntries.length) return;
+    setMeta((current) => {
+      const next = { ...current };
+      const preferServer = serverMetaMigrationKey && localStorage.getItem(serverMetaMigrationKey) === 'done';
+      pastEntries.forEach((entry) => {
+        const local = next[entry.id] || {};
+        next[entry.id] = {
+          ...local,
+          category: preferServer ? (entry.category || local.category) : (local.category || entry.category),
+          feeling: preferServer ? (entry.feeling || '') : (local.feeling ?? entry.feeling ?? ''),
+          celebrated: preferServer ? Boolean(entry.celebrated) : (local.celebrated ?? Boolean(entry.celebrated)),
+          archived: preferServer ? Boolean(entry.archived_at) : (local.archived ?? Boolean(entry.archived_at)),
+        };
+      });
+      return next;
+    });
+  }, [pastEntries, serverMetaMigrationKey]);
+  useEffect(() => { if (user?.id && metaLoaded) localStorage.setItem(scopedMetaKey, JSON.stringify(meta)); }, [meta, metaLoaded, scopedMetaKey, user?.id]);
+  useEffect(() => {
+    if (!user?.id || !metaLoaded || !pastEntries.length || migrationStarted.current) return;
+    if (localStorage.getItem(serverMetaMigrationKey) === 'done') return;
+    migrationStarted.current = true;
+    (async () => {
+      try {
+        for (const entry of pastEntries) {
+          const local = meta[entry.id];
+          if (!local) continue;
+          const payload = {};
+          if (local.category && local.category !== entry.category) payload.category = local.category;
+          if (typeof local.feeling === 'string' && local.feeling !== (entry.feeling || '')) payload.feeling = local.feeling;
+          if (typeof local.celebrated === 'boolean' && local.celebrated !== Boolean(entry.celebrated)) payload.celebrated = local.celebrated;
+          if (typeof local.archived === 'boolean' && local.archived !== Boolean(entry.archived_at)) payload.archived = local.archived;
+          if (Object.keys(payload).length) await apiService.updateMoodEntry(entry.id, payload);
+        }
+        localStorage.setItem(serverMetaMigrationKey, 'done');
+        await refreshHistory();
+      } catch (error) {
+        console.error('Failed to migrate local achievement metadata.', error);
+        migrationStarted.current = false;
+      }
+    })();
+  }, [meta, metaLoaded, pastEntries, refreshHistory, serverMetaMigrationKey, user?.id]);
+  useEffect(() => { if (requestedPeriod !== period) navigate('/dashboard?period=today', { replace: true }); }, [navigate, period, requestedPeriod]);
   const patchParams = (patch) => { const next = new URLSearchParams(params); Object.entries(patch).forEach(([key, value]) => value == null ? next.delete(key) : next.set(key, value)); setParams(next); };
   const openCompose = () => patchParams({ compose: '1' });
   const onSaved = (entry, entryMeta) => { setPastEntries((items) => [entry, ...items]); setMeta((current) => ({ ...current, [entry.id]: { ...current[entry.id], ...entryMeta } })); patchParams({ compose: null }); };
   const updateEntry = (updated) => setPastEntries((items) => items.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
   const setPeriod = (nextPeriod) => { navigate(`/dashboard?period=${nextPeriod}`); };
-  if (!onboarded && !loading && pastEntries.length === 0) return <Onboarding onBegin={() => { localStorage.setItem('little-wins:onboarded', 'true'); setOnboarded(true); setTimeout(openCompose, 0); }} onSkip={() => { localStorage.setItem('little-wins:onboarded', 'true'); setOnboarded(true); }} />;
+  if (!onboarded && !loading && pastEntries.length === 0) return <Onboarding onBegin={() => { localStorage.setItem(onboardingKey, 'true'); localStorage.removeItem('little-wins:onboarded'); localStorage.removeItem('micro-wins:onboarded'); setOnboarded(true); setTimeout(openCompose, 0); }} onSkip={() => { localStorage.setItem(onboardingKey, 'true'); localStorage.removeItem('little-wins:onboarded'); localStorage.removeItem('micro-wins:onboarded'); setOnboarded(true); }} />;
   return (
     <div className="win-app">
       <AchievementHeader period={period} setPeriod={setPeriod} onCompose={openCompose} isSettings={isSettings} />
       <SideReference section={isSettings ? 'SETTINGS' : period.toUpperCase()} />
-      {isSettings ? <SettingsPage entries={pastEntries} preferences={preferences} setPreferences={setPreferences} /> : (
+      {isSettings ? <SettingsPage entries={pastEntries} meta={meta} onRestore={async (entry) => { try { const response = await apiService.updateMoodEntry(entry.id, { archived: false }); updateEntry(response.entry); setMeta((current) => ({ ...current, [entry.id]: { ...current[entry.id], archived: false } })); show('已经恢复到看板。', 'success'); } catch { show('暂时没有恢复成功，请再试一次。', 'error'); refreshHistory(); } }} /> : (
         <main className="win-canvas">
           {loading && <div className="win-loading"><Loader2 className="spin" /> 正在展开你的微光…</div>}
-          {!loading && error && <div className="win-loading">暂时没有打开收藏盒，请稍后再试。</div>}
-          {!loading && !error && visibleEntries.length === 0 && <EmptyBoard onCompose={openCompose} />}
+          {!loading && error && <div className="win-loading">暂时没有打开收藏盒。<button onClick={refreshHistory}>重新读取</button></div>}
+          {!loading && !error && visibleEntries.length === 0 && <EmptyBoard onCompose={openCompose} hasOtherEntries={pastEntries.length > 0} />}
           {!loading && !error && visibleEntries.length > 0 && period === 'today' && <TodayTimeline entries={visibleEntries} meta={meta} onOpen={(entry) => patchParams({ achievement: entry.id })} />}
           {!loading && !error && visibleEntries.length > 0 && ['week', 'month', 'half'].includes(period) && <CollectionBoard entries={visibleEntries} meta={meta} onOpen={(entry) => patchParams({ achievement: entry.id })} period={period} />}
           {!loading && !error && visibleEntries.length > 0 && period === 'year' && <YearReview entries={visibleEntries} meta={meta} />}
         </main>
       )}
       {!isSettings && <footer className="win-status"><span><i />这里已经收藏了 <strong>{visibleEntries.length}</strong> 个值得肯定的瞬间</span><span><CalendarDays /> {period.toUpperCase()} · {Math.min(100, visibleEntries.length * 8)}%</span></footer>}
-      {params.get('compose') === '1' && <ComposeModal onClose={() => patchParams({ compose: null })} onSaved={onSaved} />}
-      {selectedEntry && <DetailModal entry={selectedEntry} meta={meta[selectedEntry.id]} onClose={() => patchParams({ achievement: null })} onUpdate={updateEntry} onArchive={() => { setMeta((current) => ({ ...current, [selectedEntry.id]: { ...current[selectedEntry.id], archived: true } })); patchParams({ achievement: null }); }} onCelebrate={() => setMeta((current) => ({ ...current, [selectedEntry.id]: { ...current[selectedEntry.id], celebrated: !current[selectedEntry.id]?.celebrated } }))} />}
+      {!isSettings && params.get('compose') === '1' && <ComposeModal onClose={() => patchParams({ compose: null })} onSaved={onSaved} />}
+      {!isSettings && selectedEntry && <DetailModal entry={selectedEntry} meta={meta[selectedEntry.id]} onClose={() => patchParams({ achievement: null })} onUpdate={updateEntry} onArchive={async () => { try { const response = await apiService.updateMoodEntry(selectedEntry.id, { archived: true }); updateEntry(response.entry); setMeta((current) => ({ ...current, [selectedEntry.id]: { ...current[selectedEntry.id], archived: true } })); patchParams({ achievement: null }); show('已经移入存档，可以随时在设置中恢复。', 'success'); } catch { show('暂时没有存档成功，请再试一次。', 'error'); refreshHistory(); } }} onCelebrate={async () => { const next = !meta[selectedEntry.id]?.celebrated; try { const response = await apiService.updateMoodEntry(selectedEntry.id, { celebrated: next }); updateEntry(response.entry); setMeta((current) => ({ ...current, [selectedEntry.id]: { ...current[selectedEntry.id], celebrated: next } })); } catch { show('暂时没有保存珍藏状态，请再试一次。', 'error'); refreshHistory(); } }} />}
     </div>
   );
 }

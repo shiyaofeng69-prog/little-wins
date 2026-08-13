@@ -34,10 +34,10 @@ export const AuthProvider = ({ children }) => {
     apiService.setAuthToken(null);
   }, []);
 
-  const localLogin = useCallback(async () => {
+  const localLogin = useCallback(async (password) => {
     try {
       setLoading(true);
-      const response = await apiService.localLogin();
+      const response = await apiService.localLogin(password);
       const { token: jwtToken, user: userData } = response;
       if (jwtToken) {
         localStorage.setItem(TOKEN_KEY, jwtToken);
@@ -46,8 +46,8 @@ export const AuthProvider = ({ children }) => {
         apiService.setAuthToken(jwtToken);
       }
       return { success: true };
-  } catch {
-      return { success: false, error: 'Local login failed' };
+    } catch (error) {
+      return { success: false, error: error.message || '进入失败，请检查本地访问密码。' };
     } finally {
       setLoading(false);
     }
@@ -58,29 +58,29 @@ export const AuthProvider = ({ children }) => {
       const userData = await apiService.verifyToken(token);
       setUser(userData.user);
       apiService.setAuthToken(token);
-  } catch {
+    } catch {
       // If verify fails, clear token and in self-host mode immediately local-login
       logout();
-      if (!config.enable_google_oauth) {
+      if (!config.enable_google_oauth && config.local_login_enabled && !config.local_login_requires_password) {
         await localLogin();
         return;
       }
     } finally {
       setLoading(false);
     }
-  }, [token, config.enable_google_oauth, logout, localLogin]);
+  }, [token, config.enable_google_oauth, config.local_login_enabled, config.local_login_requires_password, logout, localLogin]);
 
   useEffect(() => {
     if (configLoading) return;
     if (token) {
       verifyToken();
-    } else if (!config.enable_google_oauth) {
+    } else if (!config.enable_google_oauth && config.local_login_enabled && !config.local_login_requires_password) {
       // In self-host mode, auto-login to local account on first visit
       localLogin();
     } else {
       setLoading(false);
     }
-  }, [token, configLoading, config.enable_google_oauth, verifyToken, localLogin]);
+  }, [token, configLoading, config.enable_google_oauth, config.local_login_enabled, config.local_login_requires_password, verifyToken, localLogin]);
 
   const login = async (googleToken) => {
     try {
@@ -103,6 +103,7 @@ export const AuthProvider = ({ children }) => {
     user,
     loading,
     login,
+    localLogin,
     logout,
     isAuthenticated: !!user
   };

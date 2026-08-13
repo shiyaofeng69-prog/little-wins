@@ -11,6 +11,10 @@ def test_config_endpoint_client():
         "enable_google_oauth",
         "enable_mood_music",
         "google_client_id",
+        "local_login_enabled",
+        "local_login_requires_password",
+        "passwordless_local_login",
     }
     assert isinstance(data["enable_google_oauth"], bool)
     assert isinstance(data["enable_mood_music"], bool)
+    assert data["local_login_enabled"] is True

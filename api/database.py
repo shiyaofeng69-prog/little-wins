@@ -1,4 +1,4 @@
-"""Nightlio database facade built from modular mixins."""
+"""Little Wins database facade built from modular mixins."""
 
 from __future__ import annotations
 

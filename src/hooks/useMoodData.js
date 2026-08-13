@@ -13,23 +13,10 @@ export const useMoodData = () => {
     try {
       const data = await apiService.getMoodEntries();
       
-      // Fetch selections for each entry
-      const entriesWithSelections = await Promise.all(
-        data.map(async (entry) => {
-          try {
-            const selections = await apiService.getEntrySelections(entry.id);
-            return { ...entry, selections };
-          } catch (error) {
-            console.error(`Failed to load selections for entry ${entry.id}:`, error);
-            return { ...entry, selections: [] };
-          }
-        })
-      );
-      
-      setPastEntries(entriesWithSelections);
+      setPastEntries(data.map((entry) => ({ ...entry, selections: entry.selections || [] })));
     } catch (error) {
       console.error('Failed to load history:', error);
-      setError('Failed to load mood history');
+      setError('暂时无法读取记录');
     } finally {
       setLoading(false);
     }

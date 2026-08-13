@@ -1,4 +1,4 @@
-"""Database schema helpers for Nightlio."""
+"""Database schema helpers for Little Wins."""
 
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ class DatabaseSchemaMixin(DatabaseConnectionMixin):
                 # Core tables
                 self._create_users_table(conn)
                 self._create_mood_entries_table(conn)
+                self._migrate_mood_entries_table_schema(conn)
                 self._create_groups_table(conn)
                 self._create_group_options_table(conn)
                 self._create_entry_selections_table(conn)
@@ -71,6 +72,10 @@ class DatabaseSchemaMixin(DatabaseConnectionMixin):
                 date TEXT NOT NULL,
                 mood INTEGER NOT NULL CHECK (mood >= 1 AND mood <= 5),
                 content TEXT NOT NULL,
+                category TEXT,
+                feeling TEXT,
+                celebrated INTEGER NOT NULL DEFAULT 0,
+                archived_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
@@ -78,6 +83,21 @@ class DatabaseSchemaMixin(DatabaseConnectionMixin):
             """
         )
         logger.info("Mood entries table ready")
+
+    def _migrate_mood_entries_table_schema(self, conn: sqlite3.Connection) -> None:
+        """Add Little Wins fields without invalidating existing Nightlio data."""
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(mood_entries)")}
+        additions = {
+            "category": "TEXT",
+            "feeling": "TEXT",
+            "celebrated": "INTEGER NOT NULL DEFAULT 0",
+            "archived_at": "TIMESTAMP",
+        }
+        for name, definition in additions.items():
+            if name not in columns:
+                conn.execute(
+                    f"ALTER TABLE mood_entries ADD COLUMN {name} {definition}"
+                )
 
     def _create_groups_table(self, conn: sqlite3.Connection) -> None:
         conn.execute(
@@ -222,6 +242,9 @@ class DatabaseSchemaMixin(DatabaseConnectionMixin):
         try:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_mood_entries_date ON mood_entries(date)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_mood_entries_user_created ON mood_entries(user_id, created_at DESC)"
             )
             logger.info("Mood entries index ready")
         except sqlite3.Error as exc:

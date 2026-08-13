@@ -4,6 +4,8 @@ from flask import Flask
 from flask_cors import CORS
 from dotenv import load_dotenv
 from pathlib import Path
+from urllib.parse import urlsplit
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Load environment variables from the project root (parent directory)
 env_path = Path(__file__).parent.parent / ".env"
@@ -59,6 +61,7 @@ def create_app(config_name="default"):
 
     app = Flask(__name__)
     app.config.from_object(config_map[config_name])
+    app.config["MAX_CONTENT_LENGTH"] = 64 * 1024
 
     # Load typed runtime config and align secrets
     cfg = None
@@ -69,7 +72,51 @@ def create_app(config_name="default"):
         if getattr(cfg, "GOOGLE_CLIENT_ID", None):
             app.config["GOOGLE_CLIENT_ID"] = getattr(cfg, "GOOGLE_CLIENT_ID")
     except Exception:
+        if config_name == "production":
+            raise
         cfg = None  # fallback if typed config fails
+
+    if config_name == "production":
+        insecure_secrets = {
+            "dev-secret-key-change-in-production",
+            "your-secret-key-change-this",
+            "your-jwt-secret-change-this",
+            "your-secret-key-change-this-to-something-random-and-secure",
+            "your-jwt-secret-change-this-to-something-different-and-secure",
+        }
+        jwt_secret = app.config.get("JWT_SECRET_KEY", "")
+        if not isinstance(jwt_secret, str) or len(jwt_secret) < 32 or jwt_secret in insecure_secrets:
+            raise RuntimeError(
+                "Production requires a unique JWT_SECRET of at least 32 characters"
+            )
+        if cfg and cfg.ALLOW_PASSWORDLESS_LOCAL_LOGIN:
+            raise RuntimeError("Production does not allow passwordless local login")
+        if cfg and cfg.LOCAL_ACCESS_PASSWORD and len(cfg.LOCAL_ACCESS_PASSWORD) < 12:
+            raise RuntimeError(
+                "Production LOCAL_ACCESS_PASSWORD must be at least 12 characters"
+            )
+        cors_origins = app.config.get("CORS_ORIGINS", [])
+        if not cors_origins or any(
+            origin == "*"
+            or urlsplit(origin).scheme != "https"
+            or not urlsplit(origin).hostname
+            or urlsplit(origin).hostname in {"localhost", "127.0.0.1", "::1"}
+            or urlsplit(origin).path not in {"", "/"}
+            or bool(urlsplit(origin).query)
+            or bool(urlsplit(origin).fragment)
+            for origin in cors_origins
+        ):
+            raise RuntimeError(
+                "Production requires explicit HTTPS origins in CORS_ORIGINS"
+            )
+
+    if cfg and getattr(cfg, "TRUST_PROXY_HOPS", 0):
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=cfg.TRUST_PROXY_HOPS,
+            x_proto=cfg.TRUST_PROXY_HOPS,
+            x_host=cfg.TRUST_PROXY_HOPS,
+        )
 
     CORS(app, origins=app.config["CORS_ORIGINS"])
 
@@ -97,13 +144,17 @@ def create_app(config_name="default"):
     # Register blueprints
     app.register_blueprint(create_auth_routes(user_service), url_prefix="/api")
     app.register_blueprint(create_mood_routes(mood_service), url_prefix="/api")
-    app.register_blueprint(create_group_routes(group_service), url_prefix="/api")
-    app.register_blueprint(create_goal_routes(goal_service), url_prefix="/api")
-    app.register_blueprint(
-        create_achievement_routes(achievement_service), url_prefix="/api"
-    )
     app.register_blueprint(create_misc_routes(), url_prefix="/api")
     app.register_blueprint(create_config_routes(), url_prefix="/api")
+
+    # Legacy Nightlio surfaces stay off by default. They are not part of the
+    # Little Wins product model and should not expand the public attack surface.
+    if cfg and getattr(cfg, "ENABLE_LEGACY_FEATURES", False):
+        app.register_blueprint(create_group_routes(group_service), url_prefix="/api")
+        app.register_blueprint(create_goal_routes(goal_service), url_prefix="/api")
+        app.register_blueprint(
+            create_achievement_routes(achievement_service), url_prefix="/api"
+        )
 
     # Expose services for optional blueprints (e.g., OAuth) to reuse
     try:

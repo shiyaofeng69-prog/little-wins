@@ -106,9 +106,10 @@ class ApiService {
     });
   }
 
-  async localLogin() {
+  async localLogin(password) {
     return this.request('/api/auth/local/login', {
       method: 'POST',
+      body: JSON.stringify(password ? { password } : {}),
     });
   }
 
@@ -123,7 +124,15 @@ class ApiService {
 
   // Mood entries endpoints
   async getMoodEntries() {
-    return this.request('/api/moods');
+    const entries = [];
+    const pageSize = 200;
+    for (let offset = 0; offset < 10_000; offset += pageSize) {
+      const page = await this.request(`/api/moods?limit=${pageSize}&offset=${offset}`);
+      if (!Array.isArray(page)) throw new Error('Invalid entries response');
+      entries.push(...page);
+      if (page.length < pageSize) break;
+    }
+    return entries;
   }
 
   async createMoodEntry(entryData) {

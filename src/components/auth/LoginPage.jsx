@@ -39,10 +39,11 @@ const GoogleIcon = () => (
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { login, isAuthenticated } = useAuth();
+  const { login, localLogin, isAuthenticated } = useAuth();
   const { config } = useConfig();
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [localPassword, setLocalPassword] = useState('');
 
   const googleClientId = useMemo(
     () => config.google_client_id || FALLBACK_GOOGLE_CLIENT_ID,
@@ -112,6 +113,12 @@ const LoginPage = () => {
       navigate('/dashboard', { replace: true });
     }
   }, [isAuthenticated, navigate]);
+
+  useEffect(() => {
+    if (!config.enable_google_oauth && !config.local_login_enabled) {
+      setMessage('服务尚未配置登录方式。请设置本地访问密码，或明确开启仅限可信网络的免密模式。');
+    }
+  }, [config.enable_google_oauth, config.local_login_enabled]);
 
 
   const initializeGoogle = useCallback(() => {
@@ -216,10 +223,14 @@ const LoginPage = () => {
     }
   }, [config.enable_google_oauth]);
 
-  const handleSelfHostContinue = useCallback(() => {
-    if (typeof window === 'undefined') return;
-    window.location.reload();
-  }, []);
+  const handleSelfHostContinue = useCallback(async () => {
+    setIsLoading(true);
+    setMessage('');
+    const result = await localLogin(localPassword);
+    if (result.success) navigate('/dashboard', { replace: true });
+    else setMessage(result.error || '进入失败，请检查本地访问密码。');
+    setIsLoading(false);
+  }, [localLogin, localPassword, navigate]);
 
   const isSelfHost = !config.enable_google_oauth;
 
@@ -249,12 +260,25 @@ const LoginPage = () => {
 
           {message && <p className="login-page__message" style={{ marginBottom: '1rem' }}>{message}</p>}
 
+          {isSelfHost && config.local_login_requires_password && (
+            <input
+              type="password"
+              value={localPassword}
+              onChange={(event) => setLocalPassword(event.target.value)}
+              onKeyDown={(event) => event.key === 'Enter' && handleSelfHostContinue()}
+              placeholder="输入本地访问密码"
+              autoComplete="current-password"
+              aria-label="本地访问密码"
+              style={{ width: '100%', boxSizing: 'border-box', marginBottom: '12px', padding: '12px 14px', border: '1px solid var(--border)', borderRadius: '12px', background: 'var(--surface)', color: 'var(--text)' }}
+            />
+          )}
+
           {isSelfHost ? (
             <button
               type="button"
               className="login-page__button"
               onClick={handleSelfHostContinue}
-              disabled={isLoading}
+              disabled={!config.local_login_enabled || isLoading || (config.local_login_requires_password && !localPassword)}
             >
               {isLoading ? '正在进入…' : '继续'}
             </button>
@@ -307,7 +331,7 @@ const LoginPage = () => {
             <Lock size={12} aria-hidden="true" style={{ flexShrink: 0 }} />
             <span>
               {isSelfHost
-                ? '本地模式不需要外部身份验证。'
+                ? (config.local_login_requires_password ? '访问密码只会发送到你自己的服务。' : '免密模式仅适合本机或可信私有网络。')
                 : 'Google 账户仅用于身份验证。'}
             </span>
           </div>

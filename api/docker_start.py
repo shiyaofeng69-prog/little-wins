@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Docker startup script for Nightlio API
-"""
+"""Docker startup script for the Little Wins API."""
 import os
 import sys
 import subprocess
@@ -18,7 +16,7 @@ if __name__ == "__main__":
 
     port = int(os.getenv("PORT", 5000))
 
-    print(f"Starting Nightlio API on port {port}")
+    print(f"Starting Little Wins API on port {port}")
     print(f"Environment: {env}")
 
     app = create_app(env)

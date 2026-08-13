@@ -5,7 +5,7 @@
 PORT=${1:-5000}
 ENVIRONMENT=${2:-development}
 
-echo "Starting Nightlio API"
+echo "Starting Little Wins API"
 echo "Port: $PORT"
 echo "Environment: $ENVIRONMENT"
 

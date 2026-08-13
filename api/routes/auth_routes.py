@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify, current_app
+from werkzeug.exceptions import HTTPException
 import os
-from authlib.integrations.requests_client import OAuth2Session
-from authlib.common.errors import AuthlibBaseError
 import requests
+import hmac
 from jose import jwt, JWTError
 from datetime import datetime, timedelta, timezone
 from api.services.user_service import UserService
@@ -14,25 +14,28 @@ def create_auth_routes(user_service: UserService):
     auth_bp = Blueprint("auth", __name__)
 
     @auth_bp.route("/auth/google", methods=["POST"])
+    @rate_limit(max_requests=10, window_minutes=1)
     def google_auth():
         """Handle Google OAuth token verification"""
         try:
-            data = request.json
+            cfg = get_config()
+            if not cfg.ENABLE_GOOGLE_OAUTH:
+                return jsonify({"error": "Google login is disabled"}), 404
+
+            data = request.get_json(silent=True)
+            if not isinstance(data, dict):
+                return jsonify({"error": "JSON object required"}), 400
+            if set(data) != {"token"}:
+                return jsonify({"error": "Only token is accepted"}), 400
             google_token = data.get("token")
 
-            current_app.logger.info(
-                f"Received Google auth request with token: {google_token[:50] if google_token else 'None'}..."
-            )
-
-            if not google_token:
+            if not isinstance(google_token, str) or not google_token.strip():
                 return jsonify({"error": "Google token is required"}), 400
+            if len(google_token) > 8192:
+                return jsonify({"error": "Google token is too long"}), 400
 
             # Verify Google token
             google_user_info = verify_google_token(google_token)
-            current_app.logger.info(
-                f"Google token verification result: {google_user_info}"
-            )
-
             if not google_user_info:
                 return jsonify({"error": "Invalid Google token"}), 401
 
@@ -40,7 +43,7 @@ def create_auth_routes(user_service: UserService):
             user = user_service.get_or_create_user(
                 google_id=google_user_info["sub"],
                 email=google_user_info["email"],
-                name=google_user_info["name"],
+                name=google_user_info.get("name") or google_user_info["email"],
                 avatar_url=google_user_info.get("picture"),
             )
 
@@ -59,11 +62,14 @@ def create_auth_routes(user_service: UserService):
                 }
             )
 
+        except HTTPException:
+            raise
         except Exception as e:
             current_app.logger.error(f"Google auth error: {str(e)}")
             return jsonify({"error": "Authentication failed"}), 500
 
     @auth_bp.route("/auth/verify", methods=["POST"])
+    @rate_limit(max_requests=60, window_minutes=1)
     def verify_token():
         """Verify JWT token and return user info"""
         try:
@@ -71,12 +77,18 @@ def create_auth_routes(user_service: UserService):
             if not auth_header or not auth_header.startswith("Bearer "):
                 return jsonify({"error": "Authorization header required"}), 401
 
-            token = auth_header.split(" ")[1]
+            token = auth_header[7:].strip()
+            if not token or len(token) > 8192:
+                return jsonify({"error": "Invalid token"}), 401
             payload = jwt.decode(
                 token, current_app.config["JWT_SECRET_KEY"], algorithms=["HS256"]
             )
 
-            user = user_service.get_user_by_id(payload["user_id"])
+            user_id = payload.get("user_id")
+            if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
+                return jsonify({"error": "Invalid token"}), 401
+
+            user = user_service.get_user_by_id(user_id)
             if not user:
                 return jsonify({"error": "User not found"}), 404
 
@@ -96,16 +108,42 @@ def create_auth_routes(user_service: UserService):
                 return jsonify({"error": "Token expired"}), 401
             else:
                 return jsonify({"error": "Invalid token"}), 401
+        except HTTPException:
+            raise
         except Exception as e:
             current_app.logger.error(f"Token verification error: {str(e)}")
             return jsonify({"error": "Token verification failed"}), 500
 
     @auth_bp.route("/auth/local/login", methods=["POST"])
-    @rate_limit(max_requests=30, window_minutes=1)
+    @rate_limit(max_requests=10, window_minutes=1)
     def local_login():
         """Local self-host login: ensure a single default user and issue JWT."""
         try:
             cfg = get_config()
+            data = request.get_json(silent=True) or {}
+            if not isinstance(data, dict):
+                return jsonify({"error": "JSON object required"}), 400
+            if set(data) - {"password"}:
+                return jsonify({"error": "Only password is accepted"}), 400
+
+            provided_password = data.get("password")
+            if provided_password is not None and not isinstance(provided_password, str):
+                return jsonify({"error": "Password must be a string"}), 400
+            if isinstance(provided_password, str) and len(provided_password) > 1024:
+                return jsonify({"error": "Password is too long"}), 400
+
+            if cfg.LOCAL_ACCESS_PASSWORD:
+                if not provided_password or not hmac.compare_digest(
+                    provided_password, cfg.LOCAL_ACCESS_PASSWORD
+                ):
+                    return jsonify({"error": "Invalid local access password"}), 401
+            elif (
+                not cfg.ALLOW_PASSWORDLESS_LOCAL_LOGIN
+                and not current_app.config.get("TESTING")
+                and not current_app.debug
+            ):
+                return jsonify({"error": "Local login is not configured"}), 403
+
             default_user_id = cfg.DEFAULT_SELF_HOST_ID
 
             # Use friendlier display for the self-hosted user
@@ -149,6 +187,8 @@ def create_auth_routes(user_service: UserService):
                 ),
                 200,
             )
+        except HTTPException:
+            raise
         except Exception as e:
             current_app.logger.error(f"Local login error: {e}")
             return jsonify({"error": "Authentication failed"}), 500
@@ -156,17 +196,12 @@ def create_auth_routes(user_service: UserService):
     def verify_google_token(token: str) -> dict:
         """Verify Google OAuth token and return user info"""
         try:
-            current_app.logger.info(f"Verifying Google token with Google API...")
-
             # Verify token with Google
             response = requests.get(
-                f"https://oauth2.googleapis.com/tokeninfo?id_token={token}", timeout=10
+                "https://oauth2.googleapis.com/tokeninfo",
+                params={"id_token": token},
+                timeout=10,
             )
-
-            current_app.logger.info(
-                f"Google API response status: {response.status_code}"
-            )
-            current_app.logger.info(f"Google API response: {response.text}")
 
             if response.status_code != 200:
                 current_app.logger.error(
@@ -175,19 +210,19 @@ def create_auth_routes(user_service: UserService):
                 return None
 
             user_info = response.json()
-            current_app.logger.info(f"Google user info: {user_info}")
-
             # Verify the token is for our app
             expected_client_id = current_app.config["GOOGLE_CLIENT_ID"]
             actual_client_id = user_info.get("aud")
-
-            current_app.logger.info(f"Expected client ID: {expected_client_id}")
-            current_app.logger.info(f"Actual client ID: {actual_client_id}")
 
             if actual_client_id != expected_client_id:
                 current_app.logger.error(
                     f"Client ID mismatch: expected {expected_client_id}, got {actual_client_id}"
                 )
+                return None
+
+            if not user_info.get("sub") or not user_info.get("email"):
+                return None
+            if str(user_info.get("email_verified", "false")).lower() != "true":
                 return None
 
             return user_info

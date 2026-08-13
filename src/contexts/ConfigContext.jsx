@@ -13,6 +13,9 @@ export const ConfigProvider = ({ children }) => {
   const [config, setConfig] = useState({
     enable_google_oauth: false,
     enable_mood_music: false,
+    local_login_requires_password: false,
+    passwordless_local_login: false,
+    local_login_enabled: false,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

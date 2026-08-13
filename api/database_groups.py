@@ -90,5 +90,16 @@ class GroupsMixin(DatabaseConnectionMixin):
             )
             return [dict(row) for row in cursor.fetchall()]
 
+    def group_options_exist(self, option_ids: List[int]) -> bool:
+        if not option_ids:
+            return True
+        placeholders = ",".join("?" for _ in option_ids)
+        with self._connect() as conn:
+            count = conn.execute(
+                f"SELECT COUNT(DISTINCT id) FROM group_options WHERE id IN ({placeholders})",
+                option_ids,
+            ).fetchone()[0]
+            return count == len(set(option_ids))
+
 
 __all__ = ["GroupsMixin"]

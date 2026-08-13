@@ -5,11 +5,15 @@ services:
     container_name: little-wins-api
     restart: unless-stopped
     environment:
-      - RAILWAY_ENVIRONMENT=production
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this}
-      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-change-this}
-      - CORS_ORIGINS=http://localhost:5173,http://localhost:5000
+      - RAILWAY_ENVIRONMENT=development
+      - SECRET_KEY=${SECRET_KEY:-local-development-secret}
+      - JWT_SECRET=${JWT_SECRET:-local-development-jwt-secret}
+      - CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
       - ENABLE_GOOGLE_OAUTH=${ENABLE_GOOGLE_OAUTH:-0}
+      - ENABLE_LEGACY_FEATURES=0
+      - LOCAL_ACCESS_PASSWORD=${LOCAL_ACCESS_PASSWORD:-}
+      - ALLOW_PASSWORDLESS_LOCAL_LOGIN=${ALLOW_PASSWORDLESS_LOCAL_LOGIN:-1}
+      - TRUST_PROXY_HOPS=0
       - DEFAULT_SELF_HOST_ID=${DEFAULT_SELF_HOST_ID:-selfhost_default_user}
       - DATABASE_PATH=/app/data/nightlio.db
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
@@ -21,7 +25,7 @@ services:
     networks:
       - little-wins-network
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/api/')"]
       interval: 30s
@@ -34,7 +38,7 @@ services:
     container_name: little-wins-web
     restart: unless-stopped
     ports:
-      - "5173:80"
+      - "127.0.0.1:5173:80"
     depends_on:
       api:
         condition: service_healthy

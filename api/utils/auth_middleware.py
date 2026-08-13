@@ -18,13 +18,18 @@ def require_auth(f):
             return jsonify({"error": "Authorization header required"}), 401
 
         try:
-            token = auth_header.split(" ")[1]
+            token = auth_header[7:].strip()
+            if not token or len(token) > 8192:
+                return jsonify({"error": "Invalid token"}), 401
             payload = jwt.decode(
                 token, current_app.config["JWT_SECRET_KEY"], algorithms=["HS256"]
             )
 
             # Store user_id in Flask's g object for use in the route
-            g.user_id = payload["user_id"]
+            user_id = payload.get("user_id")
+            if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
+                return jsonify({"error": "Invalid token"}), 401
+            g.user_id = user_id
 
         except JWTError as e:
             if "expired" in str(e).lower():

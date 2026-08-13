@@ -5,6 +5,11 @@ from __future__ import annotations
 import sqlite3
 from typing import Dict, List, Optional
 
+ENTRY_COLUMNS = (
+    "id, date, mood, content, category, feeling, celebrated, archived_at, "
+    "created_at, updated_at"
+)
+
 try:  # pragma: no cover - allow top-level script usage
     from .database_common import DatabaseConnectionMixin
 except ImportError:  # pragma: no cover
@@ -22,23 +27,27 @@ class MoodEntriesMixin(DatabaseConnectionMixin):
         content: str,
         time: Optional[str] = None,
         selected_options: Optional[List[int]] = None,
+        category: Optional[str] = None,
+        feeling: Optional[str] = None,
     ) -> int:
         with self._connect() as conn:
             if time:
                 cursor = conn.execute(
                     """
-                    INSERT INTO mood_entries (user_id, date, mood, content, created_at)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO mood_entries
+                        (user_id, date, mood, content, category, feeling, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (user_id, date, mood, content, time),
+                    (user_id, date, mood, content, category, feeling, time),
                 )
             else:
                 cursor = conn.execute(
                     """
-                    INSERT INTO mood_entries (user_id, date, mood, content)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO mood_entries
+                        (user_id, date, mood, content, category, feeling)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (user_id, date, mood, content),
+                    (user_id, date, mood, content, category, feeling),
                 )
 
             entry_id = cursor.lastrowid
@@ -52,17 +61,20 @@ class MoodEntriesMixin(DatabaseConnectionMixin):
             conn.commit()
             return int(entry_id if entry_id is not None else 0)
 
-    def get_all_mood_entries(self, user_id: int) -> List[Dict]:
+    def get_all_mood_entries(
+        self, user_id: int, limit: int = 200, offset: int = 0
+    ) -> List[Dict]:
         with self._connect() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
                 """
-                SELECT id, date, mood, content, created_at, updated_at
+                SELECT {columns}
                   FROM mood_entries
                  WHERE user_id = ?
                  ORDER BY created_at DESC, date DESC
-                """,
-                (user_id,),
+                 LIMIT ? OFFSET ?
+                """.format(columns=ENTRY_COLUMNS),
+                (user_id, limit, offset),
             )
             return [dict(row) for row in cursor.fetchall()]
 
@@ -71,17 +83,20 @@ class MoodEntriesMixin(DatabaseConnectionMixin):
         user_id: int,
         start_date: str,
         end_date: str,
+        limit: int = 200,
+        offset: int = 0,
     ) -> List[Dict]:
         with self._connect() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
                 """
-                SELECT id, date, mood, content, created_at, updated_at
+                SELECT {columns}
                   FROM mood_entries
                  WHERE user_id = ? AND date BETWEEN ? AND ?
                  ORDER BY created_at DESC, date DESC
-                """,
-                (user_id, start_date, end_date),
+                 LIMIT ? OFFSET ?
+                """.format(columns=ENTRY_COLUMNS),
+                (user_id, start_date, end_date, limit, offset),
             )
             return [dict(row) for row in cursor.fetchall()]
 
@@ -90,10 +105,10 @@ class MoodEntriesMixin(DatabaseConnectionMixin):
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
                 """
-                SELECT id, date, mood, content, created_at, updated_at
+                SELECT {columns}
                   FROM mood_entries
                  WHERE id = ? AND user_id = ?
-                """,
+                """.format(columns=ENTRY_COLUMNS),
                 (entry_id, user_id),
             )
             row = cursor.fetchone()
@@ -108,6 +123,10 @@ class MoodEntriesMixin(DatabaseConnectionMixin):
         date: Optional[str] = None,
         time: Optional[str] = None,
         selected_options: Optional[List[int]] = None,
+        category: Optional[str] = None,
+        feeling: Optional[str] = None,
+        celebrated: Optional[bool] = None,
+        archived: Optional[bool] = None,
     ) -> bool:
         updates: List[str] = []
         params: List[object] = []
@@ -124,6 +143,19 @@ class MoodEntriesMixin(DatabaseConnectionMixin):
         if time is not None:
             updates.append("created_at = ?")
             params.append(time)
+        if category is not None:
+            updates.append("category = ?")
+            params.append(category or None)
+        if feeling is not None:
+            updates.append("feeling = ?")
+            params.append(feeling or None)
+        if celebrated is not None:
+            updates.append("celebrated = ?")
+            params.append(1 if celebrated else 0)
+        if archived is True:
+            updates.append("archived_at = CURRENT_TIMESTAMP")
+        elif archived is False:
+            updates.append("archived_at = NULL")
 
         with self._connect() as conn:
             conn.row_factory = sqlite3.Row

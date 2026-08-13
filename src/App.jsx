@@ -19,13 +19,22 @@ function App() {
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route
-                  path="/dashboard/*"
+                  path="/dashboard"
                   element={
                     <ProtectedRoute>
                       <AchievementExperience />
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/dashboard/settings"
+                  element={
+                    <ProtectedRoute>
+                      <AchievementExperience />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="/dashboard/*" element={<NotFound />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
         </AuthProvider>

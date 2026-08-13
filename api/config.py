@@ -30,9 +30,11 @@ class Config:
     )
 
     # CORS configuration
-    CORS_ORIGINS = os.environ.get(
-        "CORS_ORIGINS", "http://localhost:5173"
-    ).split(",")
+    CORS_ORIGINS = [
+        origin.strip()
+        for origin in os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")
+        if origin.strip()
+    ]
 
     # Google OAuth configuration
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
@@ -108,6 +110,7 @@ class ConfigData:
     # Feature flags
     ENABLE_GOOGLE_OAUTH: bool
     ENABLE_MOOD_MUSIC: bool
+    ENABLE_LEGACY_FEATURES: bool
 
     # Google OAuth
     GOOGLE_CLIENT_ID: Optional[str]
@@ -118,6 +121,9 @@ class ConfigData:
 
     # Auth
     JWT_SECRET: str
+    LOCAL_ACCESS_PASSWORD: Optional[str]
+    ALLOW_PASSWORDLESS_LOCAL_LOGIN: bool
+    TRUST_PROXY_HOPS: int
     DEFAULT_SELF_HOST_ID: str = "selfhost_default_user"
     # Optional friendly defaults for the self-hosted user display
     SELFHOST_USER_NAME: Optional[str] = None
@@ -137,6 +143,7 @@ def _load_config_from_env() -> ConfigData:
 
     enable_google = is_truthy(os.getenv("ENABLE_GOOGLE_OAUTH"))
     enable_mood_music = is_truthy(os.getenv("ENABLE_MOOD_MUSIC"))
+    enable_legacy_features = is_truthy(os.getenv("ENABLE_LEGACY_FEATURES"))
     # Web3 removed
 
     # Secrets pulled from env; don't default to empty string.
@@ -153,15 +160,26 @@ def _load_config_from_env() -> ConfigData:
     except (TypeError, ValueError):
         port = 5000
 
+    try:
+        trust_proxy_hops = min(10, max(0, int(os.getenv("TRUST_PROXY_HOPS", "0"))))
+    except (TypeError, ValueError):
+        trust_proxy_hops = 0
+
     return ConfigData(
         PORT=port,
         ENABLE_GOOGLE_OAUTH=enable_google,
         ENABLE_MOOD_MUSIC=enable_mood_music,
+        ENABLE_LEGACY_FEATURES=enable_legacy_features,
         GOOGLE_CLIENT_ID=os.getenv("GOOGLE_CLIENT_ID"),
         GOOGLE_CLIENT_SECRET=os.getenv("GOOGLE_CLIENT_SECRET"),
         GOOGLE_CALLBACK_URL=os.getenv("GOOGLE_CALLBACK_URL"),
         # Web3 fields removed
         JWT_SECRET=jwt_secret,
+        LOCAL_ACCESS_PASSWORD=os.getenv("LOCAL_ACCESS_PASSWORD") or None,
+        ALLOW_PASSWORDLESS_LOCAL_LOGIN=is_truthy(
+            os.getenv("ALLOW_PASSWORDLESS_LOCAL_LOGIN")
+        ),
+        TRUST_PROXY_HOPS=trust_proxy_hops,
         DEFAULT_SELF_HOST_ID=os.getenv("DEFAULT_SELF_HOST_ID")
         or "selfhost_default_user",
         SELFHOST_USER_NAME=os.getenv("SELFHOST_USER_NAME") or "Me",
@@ -188,6 +206,8 @@ def config_to_public_dict(cfg: ConfigData) -> Dict[str, Any]:
     return {
         "enable_google_oauth": bool(cfg.ENABLE_GOOGLE_OAUTH),
         "enable_mood_music": bool(cfg.ENABLE_MOOD_MUSIC),
+        "local_login_requires_password": bool(cfg.LOCAL_ACCESS_PASSWORD),
+        "passwordless_local_login": bool(cfg.ALLOW_PASSWORDLESS_LOCAL_LOGIN),
         # Expose the Google Client ID so the frontend can initialize GSI correctly
         "google_client_id": cfg.GOOGLE_CLIENT_ID,
     }

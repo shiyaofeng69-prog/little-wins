@@ -18,7 +18,9 @@ def rate_limit(max_requests=100, window_minutes=15):
             if current_app.config.get("TESTING"):
                 return f(*args, **kwargs)
 
-            client_ip = request.environ.get("HTTP_X_FORWARDED_FOR", request.remote_addr)
+            # ProxyFix, when explicitly configured, resolves the trusted proxy
+            # hop. Never trust a caller-supplied X-Forwarded-For value here.
+            client_ip = request.remote_addr or "unknown"
             now = datetime.now(timezone.utc)
             window_start = now - timedelta(minutes=window_minutes)
 

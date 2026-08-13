@@ -1,5 +1,3 @@
-import json
-
 from api.config import get_config, config_to_public_dict
 
 
@@ -10,9 +8,13 @@ def test_public_config_shape():
         "enable_google_oauth",
         "enable_mood_music",
         "google_client_id",
+        "local_login_requires_password",
+        "passwordless_local_login",
     }
     assert isinstance(public["enable_google_oauth"], bool)
     assert isinstance(public["enable_mood_music"], bool)
+    assert isinstance(public["local_login_requires_password"], bool)
+    assert isinstance(public["passwordless_local_login"], bool)
     # Only google oauth remains
 
 
