@@ -1,0 +1,60 @@
+{
+  "name": "little-wins",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "description": "A warm, low-pressure journal for noticing everyday achievements",
+  "author": "shiyaofeng69-prog and Little Wins contributors",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://github.com/shiyaofeng69-prog/little-wins",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shiyaofeng69-prog/little-wins.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shiyaofeng69-prog/little-wins/issues"
+  },
+  "keywords": [
+    "daily-achievements",
+    "micro-wins",
+    "adhd-friendly",
+    "journal",
+    "self-hosted",
+    "privacy",
+    "react",
+    "flask",
+    "docker"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "NODE_OPTIONS='--max-old-space-size=768' vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "api": "cd api && python3 -m venv venv && venv/bin/pip install -r requirements.txt && venv/bin/flask run --no-debugger",
+    "api:dev": "cd api && venv/bin/python start.py",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "setup": "./setup.sh",
+    "test": "./test.sh"
+  },
+  "dependencies": {
+    "lucide-react": "^0.460.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.9.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.32.0",
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "eslint": "^9.32.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.3.0",
+    "rollup-plugin-visualizer": "^6.0.5",
+    "vite": "^7.1.0"
+  }
+}

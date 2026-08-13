@@ -1,0 +1,56 @@
+services:
+  api:
+    build: ./api
+    image: ${API_IMAGE:-little-wins-api:local}
+    container_name: little-wins-api
+    restart: unless-stopped
+    environment:
+      - RAILWAY_ENVIRONMENT=production
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this}
+      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-change-this}
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:5000
+      - ENABLE_GOOGLE_OAUTH=${ENABLE_GOOGLE_OAUTH:-0}
+      - DEFAULT_SELF_HOST_ID=${DEFAULT_SELF_HOST_ID:-selfhost_default_user}
+      - DATABASE_PATH=/app/data/nightlio.db
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-}
+      - PORT=5000
+    volumes:
+      - nightlio_data:/app/data
+    networks:
+      - little-wins-network
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/api/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build: .
+    image: ${WEB_IMAGE:-little-wins-web:local}
+    container_name: little-wins-web
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - little-wins-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+networks:
+  little-wins-network:
+    driver: bridge
+
+volumes:
+  # Kept for backward compatibility with existing Nightlio-based installations.
+  nightlio_data:
+    driver: local

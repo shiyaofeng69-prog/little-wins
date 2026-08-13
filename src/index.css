@@ -1,0 +1,127 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600&display=swap");
+
+:root {
+  color-scheme: light;
+  font-family: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --bg: #f8f6f1;
+  --surface: #fffefa;
+  --text: #4d443d;
+  --text-muted: #90877f;
+  --border: #ddd7cd;
+  --border-soft: #ece7de;
+  --accent-50: #fff6f1;
+  --accent-100: #fce7dd;
+  --accent-200: #f8d4c5;
+  --accent-400: #efa68f;
+  --accent-500: #e99279;
+  --accent-600: #d77f68;
+  --accent-700: #bb6855;
+  --accent-bg: var(--accent-600);
+  --accent-bg-2: var(--accent-700);
+  --accent-bg-soft: var(--accent-50);
+  --accent-bg-softer: rgba(215, 127, 104, 0.1);
+  --accent-chip-bg: rgba(215, 127, 104, 0.14);
+  --bg-body: var(--bg);
+  --bg-card: var(--surface);
+  --fg-body: var(--text);
+  --fg-muted: var(--text-muted);
+  --fg-strong: var(--text);
+  --brand: var(--accent-600);
+  --brand-2: var(--accent-700);
+  --danger: #b85c55;
+  --success: #648a75;
+  --overlay: rgba(61, 53, 47, 0.34);
+  --gradient-background: radial-gradient(circle at 50% -10%, #fffdf9 0, var(--bg) 48%, #f4f0e9 100%);
+  --font-family: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-size-base: 16px;
+  --line-height-base: 1.6;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+  --space-6: 48px;
+  --space-7: 56px;
+  --space-8: 64px;
+  --space-10: 80px;
+  --space-12: 96px;
+  --gutter-page: var(--space-3);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-1: 8px;
+  --radius-2: 12px;
+  --radius-3: 16px;
+  --radius-4: 24px;
+  --radius-pill: 9999px;
+  --shadow-sm: 0 6px 18px rgba(75, 62, 51, 0.06);
+  --shadow-md: 0 18px 50px rgba(75, 62, 51, 0.1);
+  --shadow-lg: 0 28px 80px rgba(75, 62, 51, 0.13);
+  --shadow-1: var(--shadow-sm);
+  --shadow-2: var(--shadow-md);
+  --shadow-3: var(--shadow-lg);
+  --ring: 0 0 0 3px rgba(215, 127, 104, 0.24);
+}
+
+* { box-sizing: border-box; }
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--bg);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+  background: var(--gradient-background);
+  color: var(--fg-body);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+}
+
+#root { min-height: 100vh; }
+
+button, input, textarea, select { font: inherit; }
+
+button {
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+button:disabled { cursor: not-allowed; opacity: 0.58; }
+a { color: inherit; text-decoration: none; }
+img, svg { display: block; }
+h1, h2, h3, p { margin-top: 0; }
+::selection { background: var(--accent-100); color: var(--text); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
