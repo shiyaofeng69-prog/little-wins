@@ -33,6 +33,16 @@ api/venv/bin/python scripts/seed_little_wins_cases.py \
 
 `--replace` 只删除固定 QA 用户的旧记录，不影响其他用户。不要把测试库指向生产数据库。
 
+备份并验证恢复：
+
+```bash
+python scripts/backup_restore.py backup --source data/nightlio.db --destination backups/little-wins.db
+python scripts/backup_restore.py verify --database backups/little-wins.db
+python scripts/backup_restore.py restore --backup backups/little-wins.db --destination /tmp/little-wins-restored.db
+```
+
+恢复到已存在路径必须显式传入 `--replace`。正式升级前应先恢复到空环境并核对输出的表行数和内容摘要。
+
 ## 状态含义
 
 - `automated`：当前测试套件自动覆盖。

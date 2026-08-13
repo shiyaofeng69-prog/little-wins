@@ -1,6 +1,11 @@
+import sqlite3
 from typing import List, Optional, Dict
 from api.database import MoodDatabase
 from api.models.mood_entry import MoodEntry
+
+
+class IdempotencyConflict(ValueError):
+    """Raised when a key is reused for a different create request."""
 
 
 class MoodService:
@@ -17,6 +22,8 @@ class MoodService:
         selected_options: Optional[List[int]] = None,
         category: Optional[str] = None,
         feeling: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+        idempotency_fingerprint: Optional[str] = None,
     ) -> Dict:
         """Create a new mood entry and check for achievements"""
         if not (1 <= mood <= 5):
@@ -31,16 +38,53 @@ class MoodService:
         if selected_options and not self.db.group_options_exist(selected_options):
             raise ValueError("One or more selected options do not exist")
 
-        entry_id = self.db.add_mood_entry(
-            user_id,
-            date,
-            mood,
-            content,
-            time,
-            selected_options,
-            category,
-            feeling,
-        )
+        if idempotency_key:
+            existing = self.db.get_mood_entry_by_idempotency_key(
+                user_id, idempotency_key
+            )
+            if existing:
+                if existing.pop("idempotency_fingerprint", None) != idempotency_fingerprint:
+                    raise IdempotencyConflict(
+                        "Idempotency key was already used for different content"
+                    )
+                return {
+                    "entry_id": existing["id"],
+                    "entry": existing,
+                    "new_achievements": [],
+                    "created": False,
+                }
+
+        try:
+            entry_id = self.db.add_mood_entry(
+                user_id,
+                date,
+                mood,
+                content,
+                time,
+                selected_options,
+                category,
+                feeling,
+                idempotency_key,
+                idempotency_fingerprint,
+            )
+        except sqlite3.IntegrityError:
+            existing = (
+                self.db.get_mood_entry_by_idempotency_key(user_id, idempotency_key)
+                if idempotency_key
+                else None
+            )
+            if not existing:
+                raise
+            if existing.pop("idempotency_fingerprint", None) != idempotency_fingerprint:
+                raise IdempotencyConflict(
+                    "Idempotency key was already used for different content"
+                )
+            return {
+                "entry_id": existing["id"],
+                "entry": existing,
+                "new_achievements": [],
+                "created": False,
+            }
 
         # Check for new achievements
         new_achievements = self.db.check_achievements(user_id)
@@ -49,6 +93,7 @@ class MoodService:
             "entry_id": entry_id,
             "entry": self.db.get_mood_entry_by_id(user_id, entry_id),
             "new_achievements": new_achievements,
+            "created": True,
         }
 
     def get_all_entries(

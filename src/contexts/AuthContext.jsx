@@ -26,13 +26,23 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(readStoredToken);
 
-  const logout = useCallback(() => {
+  const clearSession = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(LEGACY_TOKEN_KEY);
     setToken(null);
     setUser(null);
     apiService.setAuthToken(null);
   }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      if (token) await apiService.logout();
+    } catch {
+      // Local state must still be cleared when the token is already expired.
+    } finally {
+      clearSession();
+    }
+  }, [clearSession, token]);
 
   const localLogin = useCallback(async (password) => {
     try {
@@ -60,7 +70,7 @@ export const AuthProvider = ({ children }) => {
       apiService.setAuthToken(token);
     } catch {
       // If verify fails, clear token and in self-host mode immediately local-login
-      logout();
+      clearSession();
       if (!config.enable_google_oauth && config.local_login_enabled && !config.local_login_requires_password) {
         await localLogin();
         return;
@@ -68,7 +78,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [token, config.enable_google_oauth, config.local_login_enabled, config.local_login_requires_password, logout, localLogin]);
+  }, [token, config.enable_google_oauth, config.local_login_enabled, config.local_login_requires_password, clearSession, localLogin]);
 
   useEffect(() => {
     if (configLoading) return;

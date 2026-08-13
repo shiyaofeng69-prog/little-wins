@@ -64,4 +64,4 @@ def test_all_p0_cases_have_an_executable_or_explicit_release_gate():
     assert p0_cases
     assert all(case["status"] in allowed for case in p0_cases)
     pending_p0 = [case for case in p0_cases if case["status"] == "pending"]
-    assert {case["id"] for case in pending_p0} == {"DEP-003"}
+    assert pending_p0 == []

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Sparkles } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useConfig } from '../../contexts/ConfigContext';
@@ -335,6 +335,7 @@ const LoginPage = () => {
                 : 'Google 账户仅用于身份验证。'}
             </span>
           </div>
+          <p style={{ margin: '12px 0 0', textAlign: 'center', fontSize: '.72rem' }}><Link to="/privacy" style={{ color: 'inherit' }}>隐私与使用约定</Link></p>
         </div>
       </div>
     </div>

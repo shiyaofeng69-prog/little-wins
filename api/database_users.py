@@ -69,7 +69,7 @@ class UsersMixin(DatabaseConnectionMixin):
                 try:
                     cursor = conn.execute(
                         SQLQueries.UPSERT_USER
-                        + " RETURNING id, google_id, email, name, avatar_url, created_at, last_login",
+                        + " RETURNING id, google_id, email, name, avatar_url, session_version, created_at, last_login",
                         (google_id, email, name, avatar_url),
                     )
                     row = cursor.fetchone()
@@ -87,6 +87,16 @@ class UsersMixin(DatabaseConnectionMixin):
             except Exception:
                 conn.rollback()
                 raise
+
+    def revoke_user_sessions(self, user_id: int) -> bool:
+        """Invalidate every token issued before this call for the user."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "UPDATE users SET session_version = session_version + 1 WHERE id = ?",
+                (user_id,),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
 
 
 __all__ = ["UsersMixin"]

@@ -29,25 +29,35 @@ class MoodEntriesMixin(DatabaseConnectionMixin):
         selected_options: Optional[List[int]] = None,
         category: Optional[str] = None,
         feeling: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+        idempotency_fingerprint: Optional[str] = None,
     ) -> int:
         with self._connect() as conn:
             if time:
                 cursor = conn.execute(
                     """
                     INSERT INTO mood_entries
-                        (user_id, date, mood, content, category, feeling, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                        (user_id, date, mood, content, category, feeling, created_at,
+                         idempotency_key, idempotency_fingerprint)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (user_id, date, mood, content, category, feeling, time),
+                    (
+                        user_id, date, mood, content, category, feeling, time,
+                        idempotency_key, idempotency_fingerprint,
+                    ),
                 )
             else:
                 cursor = conn.execute(
                     """
                     INSERT INTO mood_entries
-                        (user_id, date, mood, content, category, feeling)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                        (user_id, date, mood, content, category, feeling,
+                         idempotency_key, idempotency_fingerprint)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (user_id, date, mood, content, category, feeling),
+                    (
+                        user_id, date, mood, content, category, feeling,
+                        idempotency_key, idempotency_fingerprint,
+                    ),
                 )
 
             entry_id = cursor.lastrowid
@@ -60,6 +70,21 @@ class MoodEntriesMixin(DatabaseConnectionMixin):
 
             conn.commit()
             return int(entry_id if entry_id is not None else 0)
+
+    def get_mood_entry_by_idempotency_key(
+        self, user_id: int, idempotency_key: str
+    ) -> Optional[Dict]:
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """
+                SELECT {columns}, idempotency_fingerprint
+                  FROM mood_entries
+                 WHERE user_id = ? AND idempotency_key = ?
+                """.format(columns=ENTRY_COLUMNS),
+                (user_id, idempotency_key),
+            ).fetchone()
+            return dict(row) if row else None
 
     def get_all_mood_entries(
         self, user_id: int, limit: int = 200, offset: int = 0

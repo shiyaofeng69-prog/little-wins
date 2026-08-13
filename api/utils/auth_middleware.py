@@ -50,7 +50,10 @@ def require_auth(f):
             # Store user_id in Flask's g object for use in the route
             user_id = payload.get("user_id")
             user_service = current_app.extensions.get("user_service")
-            if user_service is None or user_service.get_user_by_id(user_id) is None:
+            user = user_service.get_user_by_id(user_id) if user_service else None
+            if user is None or payload.get("session_version", 0) != user.get(
+                "session_version", 0
+            ):
                 return jsonify({"error": "Invalid token"}), 401
             g.user_id = user_id
 

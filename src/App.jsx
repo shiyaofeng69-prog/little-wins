@@ -8,6 +8,7 @@ import { ToastProvider } from './components/ui/ToastProvider';
 import AboutPage from './views/AboutPage';
 import LandingPage from './views/LandingPage';
 import NotFound from './views/NotFound';
+import PrivacyPage from './views/PrivacyPage';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/about" element={<AboutPage />} />
+                <Route path="/privacy" element={<PrivacyPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route
                   path="/dashboard"

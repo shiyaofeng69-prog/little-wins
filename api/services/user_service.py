@@ -30,6 +30,9 @@ class UserService:
         """Update user's last login timestamp"""
         self.db.update_user_last_login(user_id)
 
+    def revoke_sessions(self, user_id: int) -> bool:
+        return self.db.revoke_user_sessions(user_id)
+
     # New OAuth handler with idempotent upsert
     def handle_oauth_login(
         self,

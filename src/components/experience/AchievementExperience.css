@@ -109,6 +109,8 @@
 .compose-categories > button { padding: 0; background: none; border: 1px solid transparent; border-radius: 999px; cursor: pointer; }
 .compose-categories > button.is-selected { border-color: #bdb4ab; box-shadow: 0 0 0 2px #f1eeea; }
 .auto-note { display: block; margin-top: 9px; color: #aaa199; font-size: .59rem; }
+.compose-save-state { min-height: 18px; margin-top: 18px; color: #a19890; font-size: .63rem; text-align: right; }
+.compose-save-state.is-error { color: #b26858; }
 .feeling-input { display: flex; align-items: center; padding: 0 17px; }
 .feeling-input input { flex: 1; padding: 15px 0; background: transparent; border: 0; outline: none; }
 .feeling-input svg { color: #aaa199; }
@@ -116,7 +118,7 @@
 .compose-modal footer > span { display: flex; align-items: center; gap: 7px; color: #9b928a; font-size: .63rem; }
 .compose-modal footer button { display: inline-flex; align-items: center; gap: 8px; padding: 14px 26px; color: white; background: #574c44; border: 0; border-radius: 999px; cursor: pointer; }
 .compose-modal footer button:disabled { opacity: .45; }
-.detail-modal { position: relative; display: grid; grid-template-columns: 42% 58%; width: min(1050px, calc(100vw - 48px)); min-height: 590px; overflow: hidden; background: white; border-radius: 36px; box-shadow: 0 28px 70px rgba(70,57,46,.14); }
+.detail-modal { position: relative; display: grid; grid-template-columns: 42% 58%; width: min(1050px, calc(100vw - 48px)); min-height: 590px; max-height: calc(100vh - 48px); overflow-y: auto; background: white; border-radius: 36px; box-shadow: 0 28px 70px rgba(70,57,46,.14); }
 .detail-photo { display: grid; place-items: center; padding: 55px; background: #fcfbf8; border-right: 1px solid #efebe6; }
 .detail-photo > div { display: grid; width: 100%; aspect-ratio: .82; place-items: center; color: #ded9d4; background: linear-gradient(135deg,#e4ddd8,#e3e3df); border: 14px solid white; box-shadow: 0 18px 40px rgba(70,57,46,.09); }
 .detail-photo > span { display: none; }
@@ -125,6 +127,10 @@
 .detail-copy h2 { margin: 58px 0 30px; font-family: "Songti SC", serif; font-size: 2.1rem; font-weight: 500; }
 .detail-copy > p { color: #71675f; font-family: "Songti SC", serif; font-size: 1rem; line-height: 2; white-space: pre-wrap; }
 .detail-copy textarea { width: 100%; box-sizing: border-box; padding: 15px; border: 1px solid #e5dfd8; border-radius: 14px; font: 1rem/1.8 "Songti SC", serif; }
+.detail-edit-form { display: grid; gap: 14px; }
+.detail-edit-form label { display: grid; gap: 7px; color: #877d74; font-size: .67rem; }
+.detail-edit-form input,.detail-edit-form select { box-sizing: border-box; width: 100%; padding: 11px 13px; color: #625850; background: #fbfaf8; border: 1px solid #e5dfd8; border-radius: 12px; }
+.detail-edit-form > div { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .detail-copy blockquote { margin: 30px 0; padding-left: 18px; color: #938981; border-left: 3px solid #f2c5b9; font-family: "Songti SC", serif; }
 .detail-reflection { display: flex; flex-direction: column; gap: 8px; margin-top: 55px; padding-top: 24px; border-top: 1px solid #f0ece7; }
 .detail-reflection span { color: #bbb2aa; font: .58rem Georgia, serif; letter-spacing: .18em; }
@@ -135,6 +141,7 @@
 .detail-modal > footer svg { width: 16px; }
 .detail-modal > footer .celebrate-button { padding-inline: 27px; color: white; background: var(--win-coral); border-color: var(--win-coral); }
 .detail-modal > footer .celebrate-button.is-active { color: #9e6456; background: #fbe5df; }
+.detail-modal > footer .delete-confirm { color: #a34f43; border-color: #e8b6ae; }
 .onboarding { position: relative; display: flex; min-height: 100vh; flex-direction: column; align-items: center; overflow: hidden; }
 .onboarding > .win-brand { position: absolute; top: 20px; left: 92px; }
 .onboarding__profile { position: absolute; top: 15px; right: 25px; }

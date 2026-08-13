@@ -25,7 +25,7 @@ const AboutPage = () => (
       <section className="about__section"><h2>它不是什么</h2><p>小小做到不是医疗产品，不进行 ADHD 诊断，也不替代专业治疗。它只是一块安静的看板，帮助你在困难的日子里，仍然看见自己做过的事情。</p></section>
     </main>
 
-    <footer className="landing__footer"><Link className="landing__brand" to="/"><span><Sparkles size={17} /></span><strong>小小做到</strong></Link><p>每一个做到，都值得被看见。</p><div><a href={SOURCE_URL}>AGPL-3.0 源码</a></div></footer>
+    <footer className="landing__footer"><Link className="landing__brand" to="/"><span><Sparkles size={17} /></span><strong>小小做到</strong></Link><p>每一个做到，都值得被看见。</p><div><Link to="/privacy">隐私与使用约定</Link><a href={SOURCE_URL}>AGPL-3.0 源码</a></div></footer>
   </div>
 );
 

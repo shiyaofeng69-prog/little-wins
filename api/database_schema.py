@@ -23,6 +23,7 @@ class DatabaseSchemaMixin(DatabaseConnectionMixin):
 
                 # Core tables
                 self._create_users_table(conn)
+                self._migrate_users_table_schema(conn)
                 self._create_mood_entries_table(conn)
                 self._migrate_mood_entries_table_schema(conn)
                 self._create_groups_table(conn)
@@ -63,6 +64,13 @@ class DatabaseSchemaMixin(DatabaseConnectionMixin):
         )
         logger.info("Users table ready")
 
+    def _migrate_users_table_schema(self, conn: sqlite3.Connection) -> None:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(users)")}
+        if "session_version" not in columns:
+            conn.execute(
+                "ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0"
+            )
+
     def _create_mood_entries_table(self, conn: sqlite3.Connection) -> None:
         conn.execute(
             """
@@ -92,6 +100,8 @@ class DatabaseSchemaMixin(DatabaseConnectionMixin):
             "feeling": "TEXT",
             "celebrated": "INTEGER NOT NULL DEFAULT 0",
             "archived_at": "TIMESTAMP",
+            "idempotency_key": "TEXT",
+            "idempotency_fingerprint": "TEXT",
         }
         for name, definition in additions.items():
             if name not in columns:
@@ -245,6 +255,10 @@ class DatabaseSchemaMixin(DatabaseConnectionMixin):
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_mood_entries_user_created ON mood_entries(user_id, created_at DESC)"
+            )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_mood_entries_user_idempotency "
+                "ON mood_entries(user_id, idempotency_key) WHERE idempotency_key IS NOT NULL"
             )
             logger.info("Mood entries index ready")
         except sqlite3.Error as exc:

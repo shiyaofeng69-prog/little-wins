@@ -7,7 +7,7 @@ from jose import jwt, JWTError
 from datetime import datetime, timedelta, timezone
 from api.services.user_service import UserService
 from api.utils.rate_limiter import rate_limit
-from api.utils.auth_middleware import decode_access_token
+from api.utils.auth_middleware import decode_access_token, get_current_user_id, require_auth
 from api.config import get_config
 
 
@@ -49,7 +49,9 @@ def create_auth_routes(user_service: UserService):
             )
 
             # Generate JWT token
-            jwt_token = generate_jwt_token(user["id"])
+            jwt_token = generate_jwt_token(
+                user["id"], user.get("session_version", 0)
+            )
 
             return jsonify(
                 {
@@ -90,6 +92,8 @@ def create_auth_routes(user_service: UserService):
             user = user_service.get_user_by_id(user_id)
             if not user:
                 return jsonify({"error": "User not found"}), 404
+            if payload.get("session_version", 0) != user.get("session_version", 0):
+                return jsonify({"error": "Invalid token"}), 401
 
             return jsonify(
                 {
@@ -167,6 +171,7 @@ def create_auth_routes(user_service: UserService):
 
             payload = {
                 "user_id": user["id"],
+                "session_version": user.get("session_version", 0),
                 "exp": datetime.now(timezone.utc)
                 + timedelta(seconds=current_app.config["JWT_ACCESS_TOKEN_EXPIRES"]),
                 "iat": datetime.now(timezone.utc),
@@ -193,6 +198,17 @@ def create_auth_routes(user_service: UserService):
         except Exception as e:
             current_app.logger.error(f"Local login error: {e}")
             return jsonify({"error": "Authentication failed"}), 500
+
+    @auth_bp.route("/auth/logout", methods=["POST"])
+    @require_auth
+    def logout():
+        """Revoke tokens issued for the current account before logging out."""
+        user_id = get_current_user_id()
+        if user_id is None:
+            return jsonify({"error": "Unauthorized"}), 401
+        if not user_service.revoke_sessions(user_id):
+            return jsonify({"error": "User not found"}), 404
+        return jsonify({"status": "success"}), 200
 
     def verify_google_token(token: str) -> dict:
         """Verify Google OAuth token and return user info"""
@@ -232,10 +248,11 @@ def create_auth_routes(user_service: UserService):
             current_app.logger.error(f"Google token verification error: {str(e)}")
             return None
 
-    def generate_jwt_token(user_id: int) -> str:
+    def generate_jwt_token(user_id: int, session_version: int = 0) -> str:
         """Generate JWT token for user"""
         payload = {
             "user_id": user_id,
+            "session_version": session_version,
             "exp": datetime.now(timezone.utc)
             + timedelta(seconds=current_app.config["JWT_ACCESS_TOKEN_EXPIRES"]),
             "iat": datetime.now(timezone.utc),

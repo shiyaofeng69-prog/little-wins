@@ -1,8 +1,11 @@
 from datetime import date as date_type, datetime, timedelta, timezone
+import hashlib
+import json
+import re
 from typing import Any, Dict, List, Optional
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.exceptions import HTTPException
-from api.services.mood_service import MoodService
+from api.services.mood_service import IdempotencyConflict, MoodService
 from api.utils.auth_middleware import require_auth, get_current_user_id
 
 ALLOWED_CATEGORIES = {
@@ -76,6 +79,27 @@ def create_mood_routes(mood_service: MoodService):
                 feeling = _strict_text(data["feeling"], "feeling", 300, required=False)
             selected_options = _normalise_selected_options(selected_options_raw)
 
+            idempotency_key = request.headers.get("Idempotency-Key")
+            if idempotency_key is not None:
+                if not re.fullmatch(r"[A-Za-z0-9._:-]{8,128}", idempotency_key):
+                    return jsonify({"error": "Invalid Idempotency-Key"}), 400
+            fingerprint = hashlib.sha256(
+                json.dumps(
+                    {
+                        "mood": mood_value,
+                        "date": date_value,
+                        "content": content_value,
+                        "time": time_value,
+                        "selected_options": selected_options,
+                        "category": category,
+                        "feeling": feeling,
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+
             result = mood_service.create_mood_entry(
                 user_id,
                 date_value,
@@ -85,6 +109,8 @@ def create_mood_routes(mood_service: MoodService):
                 selected_options,
                 category,
                 feeling,
+                idempotency_key,
+                fingerprint,
             )
 
             return (
@@ -97,9 +123,11 @@ def create_mood_routes(mood_service: MoodService):
                         "message": "Mood entry created successfully",
                     }
                 ),
-                201,
+                201 if result["created"] else 200,
             )
 
+        except IdempotencyConflict as e:
+            return jsonify({"error": str(e)}), 409
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         except HTTPException:

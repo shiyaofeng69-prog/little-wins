@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, Code2, Download,
   Edit3, Heart, Image as ImageIcon, Loader2, LogOut, Plus,
   Settings, Sparkles, Trash2, UploadCloud, UserRound, X,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useConfig } from '../../contexts/ConfigContext';
 import { useToast } from '../ui/ToastProvider';
 import { useMoodData } from '../../hooks/useMoodData';
 import apiService from '../../services/api';
@@ -35,6 +36,12 @@ const localDateIso = (date = new Date()) => {
   const offset = date.getTimezoneOffset() * 60_000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 10);
 };
+const idempotencyKey = () => globalThis.crypto?.randomUUID?.() || `win-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const localTimeValue = (entry) => {
+  const value = dateOf(entry);
+  if (!value) return '12:00';
+  return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
+};
 const startFor = (period) => {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
@@ -58,6 +65,8 @@ function Brand({ pageTitle }) {
 function AchievementHeader({ period, setPeriod, onCompose, isSettings }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { config } = useConfig();
+  const canLogout = config.enable_google_oauth || config.local_login_requires_password;
   const current = PERIODS.find((item) => item.key === period) || PERIODS[0];
   return (
     <header className={`win-header ${isSettings ? 'is-settings' : ''}`}>
@@ -73,7 +82,7 @@ function AchievementHeader({ period, setPeriod, onCompose, isSettings }) {
       <div className="win-header__actions">
         {!isSettings && <button className="win-compose-trigger" onClick={onCompose}><Plus size={20} /><span>记下一个小胜利</span></button>}
         <button className="win-icon-button" onClick={() => navigate('/dashboard/settings')} aria-label="设置"><Settings size={18} /></button>
-        <button className="win-icon-button" onClick={logout} aria-label="退出登录"><LogOut size={17} /></button>
+        {canLogout && <button className="win-icon-button" onClick={logout} aria-label="退出登录"><LogOut size={17} /></button>}
       </div>
     </header>
   );
@@ -175,10 +184,16 @@ function EmptyBoard({ onCompose, hasOtherEntries }) {
 }
 
 function ComposeModal({ onClose, onSaved, initialCategory }) {
-  const [content, setContent] = useState('');
-  const [feeling, setFeeling] = useState('');
-  const [category, setCategory] = useState(initialCategory || '');
+  const { user } = useAuth();
+  const draftKey = `little-wins:compose-draft:user:${user?.id || 'anonymous'}`;
+  const initialDraft = readJson(draftKey, {});
+  const [content, setContent] = useState(typeof initialDraft.content === 'string' ? initialDraft.content.slice(0, 800) : '');
+  const [feeling, setFeeling] = useState(typeof initialDraft.feeling === 'string' ? initialDraft.feeling.slice(0, 300) : '');
+  const [category, setCategory] = useState(WIN_CATEGORIES.some((item) => item.key === initialDraft.category) ? initialDraft.category : (initialCategory || ''));
+  const [requestKey] = useState(typeof initialDraft.idempotencyKey === 'string' && /^[A-Za-z0-9._:-]{8,128}$/.test(initialDraft.idempotencyKey) ? initialDraft.idempotencyKey : idempotencyKey);
   const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState(initialDraft.content ? 'draft' : 'idle');
+  const [saveError, setSaveError] = useState('');
   const { show } = useToast();
   const inferred = content.trim() ? classifyWin({ content }).category.key : '';
   const effectiveCategory = category || inferred;
@@ -187,19 +202,38 @@ function ComposeModal({ onClose, onSaved, initialCategory }) {
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [onClose]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (content || feeling || category) {
+        localStorage.setItem(draftKey, JSON.stringify({ content, feeling, category, idempotencyKey: requestKey, updatedAt: new Date().toISOString() }));
+        if (!saving) setSaveState((current) => current === 'error' ? current : 'draft');
+      } else {
+        localStorage.removeItem(draftKey);
+        setSaveState('idle');
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [category, content, draftKey, feeling, requestKey, saving]);
   const save = async (event) => {
     event.preventDefault();
     if (!content.trim() || saving) return;
     setSaving(true);
+    setSaveState('saving');
+    setSaveError('');
     const now = new Date();
     try {
-      const response = await apiService.createMoodEntry({ mood: 4, date: localDateIso(now), time: now.toISOString(), content: content.trim(), category: effectiveCategory, feeling: feeling.trim(), selected_options: [] });
+      const response = await apiService.createMoodEntry({ mood: 4, date: localDateIso(now), time: now.toISOString(), content: content.trim(), category: effectiveCategory, feeling: feeling.trim(), selected_options: [] }, requestKey);
       const entry = response.entry || { id: response.entry_id, mood: 4, date: localDateIso(now), created_at: now.toISOString(), content: content.trim(), category: effectiveCategory, feeling: feeling.trim(), selections: [] };
+      localStorage.removeItem(draftKey);
+      setSaveState('saved');
       onSaved(entry, { category: effectiveCategory, feeling: feeling.trim() });
       show('已经替你收好了。这件事值得被记住。', 'success');
     } catch (error) {
       console.error(error);
-      show('暂时没有收好，但文字还在这里。请再试一次。', 'error');
+      const message = error?.message || '暂时无法连接服务';
+      setSaveError(message);
+      show(`暂时没有收好：${message}。文字仍在这里。`, 'error');
+      setSaveState('error');
       setSaving(false);
     }
   };
@@ -217,18 +251,25 @@ function ComposeModal({ onClose, onSaved, initialCategory }) {
         <small className="auto-note">先写内容，我们会自动分类；你也可以轻轻修正。</small>
         <label>当时的感受 <span>/ FEELING · 可选</span></label>
         <div className="feeling-input"><input value={feeling} maxLength={300} onChange={(event) => setFeeling(event.target.value)} placeholder="那个时刻，我觉得…" /></div>
+        <div className={`compose-save-state is-${saveState}`} aria-live="polite">{saveState === 'draft' && '草稿已保存在这台设备'}{saveState === 'saving' && '正在保存…'}{saveState === 'error' && `保存失败：${saveError || '请稍后重试'}。草稿仍在`}</div>
         <footer><span><Clock3 size={14} /> 今天，{new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span><button type="submit" disabled={!content.trim() || saving}>{saving ? <Loader2 className="spin" /> : <Sparkles size={16} />}保存这个瞬间</button></footer>
       </form>
     </div>
   );
 }
 
-function DetailModal({ entry, meta, onClose, onUpdate, onArchive, onCelebrate }) {
+function DetailModal({ entry, meta, onClose, onUpdate, onMetaUpdate, onArchive, onDelete, onCelebrate }) {
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState(entry.content);
+  const [feeling, setFeeling] = useState(meta?.feeling || entry.feeling || '');
+  const [categoryKey, setCategoryKey] = useState(meta?.category || entry.category || classifyWin(entry).category.key);
+  const [entryDate, setEntryDate] = useState(entry.date || localDateIso(dateOf(entry)));
+  const [entryTime, setEntryTime] = useState(localTimeValue(entry));
   const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const inferred = classifyWin(entry);
-  const category = WIN_CATEGORIES.find((item) => item.key === meta?.category) || inferred.category;
+  const category = WIN_CATEGORIES.find((item) => item.key === categoryKey) || inferred.category;
   const { show } = useToast();
   useEffect(() => {
     const closeOnEscape = (event) => event.key === 'Escape' && onClose();
@@ -239,14 +280,22 @@ function DetailModal({ entry, meta, onClose, onUpdate, onArchive, onCelebrate })
     if (!content.trim()) return;
     setSaving(true);
     try {
-      const response = await apiService.updateMoodEntry(entry.id, { content: content.trim() });
-      onUpdate({ ...entry, ...(response.entry || {}), content: content.trim() });
+      const timestamp = new Date(`${entryDate}T${entryTime}:00`);
+      const response = await apiService.updateMoodEntry(entry.id, { content: content.trim(), category: categoryKey, feeling: feeling.trim() || null, date: entryDate, time: timestamp.toISOString() });
+      const updated = { ...entry, ...(response.entry || {}), content: content.trim(), category: categoryKey, feeling: feeling.trim() };
+      onUpdate(updated);
+      onMetaUpdate({ category: categoryKey, feeling: feeling.trim() });
       setEditing(false);
       show('修改已经保存。', 'success');
     } catch (error) {
       console.error(error);
       show('修改暂时没有保存，请再试一次。', 'error');
     } finally { setSaving(false); }
+  };
+  const removePermanently = async () => {
+    if (!deleteConfirm || deleting) { setDeleteConfirm(true); return; }
+    setDeleting(true);
+    try { await onDelete(); } catch { setDeleteConfirm(false); } finally { setDeleting(false); }
   };
   return (
     <div className="win-modal-layer" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -256,12 +305,12 @@ function DetailModal({ entry, meta, onClose, onUpdate, onArchive, onCelebrate })
         <div className="detail-copy">
           <div className="detail-copy__meta"><CategoryPill category={category} /><span>今天 {formatTime(entry)} 记录</span></div>
           <h2 id="detail-title">{inferred.title}</h2>
-          {editing ? <textarea value={content} maxLength={800} onChange={(event) => setContent(event.target.value)} rows={7} /> : <p>{entry.content}</p>}
-          {meta?.feeling && <blockquote>“{meta.feeling}”</blockquote>}
+          {editing ? <div className="detail-edit-form"><label>做到的事情<textarea value={content} maxLength={800} onChange={(event) => setContent(event.target.value)} rows={5} /></label><label>分类<select value={categoryKey} onChange={(event) => setCategoryKey(event.target.value)}>{WIN_CATEGORIES.map((item) => <option value={item.key} key={item.key}>{item.label}</option>)}</select></label><label>当时的感受<input value={feeling} maxLength={300} onChange={(event) => setFeeling(event.target.value)} placeholder="可以留空" /></label><div><label>日期<input type="date" max={localDateIso()} value={entryDate} onChange={(event) => setEntryDate(event.target.value)} /></label><label>时间<input type="time" value={entryTime} onChange={(event) => setEntryTime(event.target.value)} /></label></div></div> : <p>{entry.content}</p>}
+          {!editing && feeling && <blockquote>“{feeling}”</blockquote>}
           <div className="detail-reflection"><span>THIS MOMENT</span><strong>{inferred.encouragement}</strong></div>
         </div>
         <footer>
-          <div>{editing ? <button onClick={save} disabled={saving}><Check />保存修改</button> : <button onClick={() => setEditing(true)}><Edit3 />编辑内容</button>}<button onClick={onArchive}><Trash2 />移入存档</button></div>
+          <div>{editing ? <button onClick={save} disabled={saving || !content.trim() || !entryDate || !entryTime}><Check />{saving ? '正在保存' : '保存修改'}</button> : <button onClick={() => setEditing(true)}><Edit3 />编辑内容</button>}<button onClick={onArchive}><Trash2 />移入存档</button><button className={deleteConfirm ? 'delete-confirm' : ''} onClick={removePermanently} disabled={deleting}>{deleteConfirm ? (deleting ? '正在删除' : '再次点击永久删除') : '永久删除'}</button></div>
           <div><button className={`celebrate-button ${meta?.celebrated ? 'is-active' : ''}`} onClick={onCelebrate}><Sparkles />{meta?.celebrated ? '已珍藏这一刻' : '庆祝这一刻'}</button></div>
         </footer>
       </article>
@@ -295,7 +344,7 @@ function SettingsPage({ entries, meta, onRestore }) {
       <section><h2>存档</h2>{archivedEntries.length === 0 ? <p className="settings-note">还没有存档的记录。</p> : <div className="archive-list">{archivedEntries.map((entry) => <article key={entry.id}><span>{classifyWin(entry).title}</span><button onClick={() => onRestore(entry)}>恢复到看板</button></article>)}</div>}</section>
       <section><h2>温柔提醒</h2><p className="settings-note">系统通知仍在规划中；正式可用前不会显示无效开关。</p></section>
       <section><h2>数据、隐私与开源</h2><div className="data-cards"><button onClick={exportData}><Download /><strong>导出完整记录</strong><span>包含分类、感受、珍藏和存档状态</span></button><article><UploadCloud /><strong>账户同步</strong><span>记录与整理信息已保存在当前账户</span></article><a href="https://github.com/shiyaofeng69-prog/little-wins" target="_blank" rel="noreferrer"><Code2 /><strong>查看对应源码</strong><span>AGPL-3.0 · 修改与来源说明</span></a></div></section>
-      <footer>小小做到 · Little Wins · Version 0.2.0<br /><span>基于 Nightlio 的开源工程基础重新设计。记录不是为了终点，而是为了感知一路走来的每一步。</span></footer>
+      <footer>小小做到 · Little Wins · Version 0.2.0<br /><span>基于 Nightlio 的开源工程基础重新设计。记录不是为了终点，而是为了感知一路走来的每一步。</span><br /><Link to="/privacy">隐私与使用约定</Link></footer>
     </main>
   );
 }
@@ -402,7 +451,7 @@ export default function AchievementExperience() {
       )}
       {!isSettings && <footer className="win-status"><span><i />这里已经收藏了 <strong>{visibleEntries.length}</strong> 个值得肯定的瞬间</span><span><CalendarDays /> {period.toUpperCase()} · {Math.min(100, visibleEntries.length * 8)}%</span></footer>}
       {!isSettings && params.get('compose') === '1' && <ComposeModal onClose={() => patchParams({ compose: null })} onSaved={onSaved} />}
-      {!isSettings && selectedEntry && <DetailModal entry={selectedEntry} meta={meta[selectedEntry.id]} onClose={() => patchParams({ achievement: null })} onUpdate={updateEntry} onArchive={async () => { try { const response = await apiService.updateMoodEntry(selectedEntry.id, { archived: true }); updateEntry(response.entry); setMeta((current) => ({ ...current, [selectedEntry.id]: { ...current[selectedEntry.id], archived: true } })); patchParams({ achievement: null }); show('已经移入存档，可以随时在设置中恢复。', 'success'); } catch { show('暂时没有存档成功，请再试一次。', 'error'); refreshHistory(); } }} onCelebrate={async () => { const next = !meta[selectedEntry.id]?.celebrated; try { const response = await apiService.updateMoodEntry(selectedEntry.id, { celebrated: next }); updateEntry(response.entry); setMeta((current) => ({ ...current, [selectedEntry.id]: { ...current[selectedEntry.id], celebrated: next } })); } catch { show('暂时没有保存珍藏状态，请再试一次。', 'error'); refreshHistory(); } }} />}
+      {!isSettings && selectedEntry && <DetailModal entry={selectedEntry} meta={meta[selectedEntry.id]} onClose={() => patchParams({ achievement: null })} onUpdate={updateEntry} onMetaUpdate={(patch) => setMeta((current) => ({ ...current, [selectedEntry.id]: { ...current[selectedEntry.id], ...patch } }))} onArchive={async () => { try { const response = await apiService.updateMoodEntry(selectedEntry.id, { archived: true }); updateEntry(response.entry); setMeta((current) => ({ ...current, [selectedEntry.id]: { ...current[selectedEntry.id], archived: true } })); patchParams({ achievement: null }); show('已经移入存档，可以随时在设置中恢复。', 'success'); } catch { show('暂时没有存档成功，请再试一次。', 'error'); refreshHistory(); } }} onDelete={async () => { try { await apiService.deleteMoodEntry(selectedEntry.id); setPastEntries((items) => items.filter((item) => item.id !== selectedEntry.id)); setMeta((current) => { const next = { ...current }; delete next[selectedEntry.id]; return next; }); patchParams({ achievement: null }); show('这条记录已经永久删除。', 'success'); } catch { show('暂时没有删除成功，请再试一次。', 'error'); throw new Error('delete failed'); } }} onCelebrate={async () => { const next = !meta[selectedEntry.id]?.celebrated; try { const response = await apiService.updateMoodEntry(selectedEntry.id, { celebrated: next }); updateEntry(response.entry); setMeta((current) => ({ ...current, [selectedEntry.id]: { ...current[selectedEntry.id], celebrated: next } })); } catch { show('暂时没有保存珍藏状态，请再试一次。', 'error'); refreshHistory(); } }} />}
     </div>
   );
 }

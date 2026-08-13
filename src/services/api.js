@@ -48,12 +48,13 @@ class ApiService {
         url = `${baseNoTrail}${path}`;
       }
     }
+    const { headers: optionHeaders = {}, ...requestOptions } = options;
     const config = {
+      ...requestOptions,
       headers: {
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...optionHeaders,
       },
-      ...options,
     };
 
     if (this.token) {
@@ -122,6 +123,10 @@ class ApiService {
     });
   }
 
+  async logout() {
+    return this.request('/api/auth/logout', { method: 'POST' });
+  }
+
   // Mood entries endpoints
   async getMoodEntries() {
     const entries = [];
@@ -135,9 +140,10 @@ class ApiService {
     return entries;
   }
 
-  async createMoodEntry(entryData) {
+  async createMoodEntry(entryData, idempotencyKey) {
     return this.request('/api/mood', {
       method: 'POST',
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
       body: JSON.stringify(entryData),
     });
   }

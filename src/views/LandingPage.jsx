@@ -54,7 +54,7 @@ const LandingPage = () => (
       <section className="landing__closing"><Sparkles /><h2>今天，有什么事情<br />是你做到了的？</h2><Link to="/dashboard">打开你的微光板 <ArrowRight /></Link></section>
     </main>
 
-    <footer className="landing__footer"><Brand /><p>小小做到是个人记录工具，不提供医疗诊断或治疗建议。</p><div><Link to="/about">项目与来源</Link><a href={SOURCE_URL}>AGPL-3.0 源码</a></div></footer>
+    <footer className="landing__footer"><Brand /><p>小小做到是个人记录工具，不提供医疗诊断或治疗建议。</p><div><Link to="/about">项目与来源</Link><Link to="/privacy">隐私与使用约定</Link><a href={SOURCE_URL}>AGPL-3.0 源码</a></div></footer>
   </div>
 );
 
