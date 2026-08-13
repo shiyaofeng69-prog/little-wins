@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "status_definitions": {
+    "automated": "Covered by executable tests in api/tests.",
+    "manual-ready": "Implemented and ready for a human/browser acceptance pass.",
+    "deployment-ready": "Code guard exists; final pass requires real production configuration.",
+    "pending": "Requirement is not implemented yet; this case defines its future acceptance bar."
+  },
+  "cases": [
+    {"id":"UX-001","priority":"P1","status":"manual-ready","requirement":"首次引导","tags":["page","happy-path"],"steps":["使用无记录的新账户进入 /dashboard","点击开启第一个小胜利"],"expected":"显示温情引导；点击后打开记录弹窗；不使用连续打卡或惩罚性语言。"},
+    {"id":"UX-002","priority":"P0","status":"automated","requirement":"创建记录闭环","tags":["function","input","data"],"steps":["填写正文、分类、感受","保存并刷新"],"expected":"记录仅创建一次；正文、分类、感受由服务端保存，刷新后仍存在。"},
+    {"id":"UX-003","priority":"P1","status":"manual-ready","requirement":"自动分类与修正","tags":["classification","input"],"steps":["输入包含邮件的文本","观察自动分类","手动切换分类并保存"],"expected":"默认归入工作与学习；用户修正优先并持久化。"},
+    {"id":"UX-004","priority":"P1","status":"manual-ready","requirement":"保存失败保护","tags":["exception","weak-network"],"steps":["输入正文","断开 API 后保存"],"expected":"显示失败反馈，弹窗和已输入文字保持，不产生假成功状态。"},
+    {"id":"UX-005","priority":"P1","status":"manual-ready","requirement":"时间范围回看","tags":["page","date"],"steps":["依次查看今日、今周、今月、半年、今年"],"expected":"各视图只展示范围内非未来、非存档记录；空范围显示正确空状态。"},
+    {"id":"UX-006","priority":"P1","status":"manual-ready","requirement":"年度回顾","tags":["page","leap-year","timezone"],"steps":["使用跨年与闰年数据打开今年"],"expected":"只渲染当年 365/366 个日期点；统计与可见记录一致；时区切换不导致日期偏移。"},
+    {"id":"UX-007","priority":"P1","status":"manual-ready","requirement":"详情编辑","tags":["function","exception"],"steps":["打开详情","修改正文并保存","模拟失败重试"],"expected":"成功后立即更新；失败时保留编辑内容并提示。"},
+    {"id":"UX-008","priority":"P1","status":"automated","requirement":"珍藏、存档和恢复","tags":["function","data"],"steps":["珍藏记录","移入存档","在设置页恢复","刷新页面"],"expected":"三个状态均服务端持久化；存档记录不在看板；恢复后重新出现。"},
+    {"id":"UX-009","priority":"P1","status":"manual-ready","requirement":"完整 JSON 导出","tags":["export","privacy"],"steps":["点击导出完整记录","检查文件"],"expected":"文件包含版本、导出时间、记录、分类、感受、珍藏和存档状态，不包含 JWT。"},
+    {"id":"UX-010","priority":"P1","status":"automated","requirement":"异常路由","tags":["exception","route"],"steps":["访问非法 period 与 /dashboard/unknown"],"expected":"非法 period 规范化为 today；未知页面显示 404，不展示空白页。"},
+    {"id":"UX-011","priority":"P1","status":"manual-ready","requirement":"响应式关键入口","tags":["mobile","page"],"steps":["在 390×844 视口打开看板和设置"],"expected":"记录、设置、返回和退出入口可见且可操作；内容无不可恢复遮挡。"},
+    {"id":"UX-012","priority":"P1","status":"manual-ready","requirement":"基础键盘操作","tags":["accessibility","modal"],"steps":["键盘打开弹窗","按 Escape","再次打开并用 Tab 操作"],"expected":"Escape 关闭；控件有可读名称；关闭后焦点回到触发按钮。"},
+
+    {"id":"SEC-001","priority":"P0","status":"automated","requirement":"认证覆盖","tags":["permission","auth"],"steps":["无 Token 调用记录、统计与导出接口"],"expected":"所有私有资源返回 401，不泄露数据。"},
+    {"id":"SEC-002","priority":"P0","status":"automated","requirement":"跨用户资源边界","tags":["permission","idor"],"steps":["用户 B 查询、修改、删除用户 A 的记录 ID"],"expected":"全部返回 404，A 的记录不改变。"},
+    {"id":"SEC-003","priority":"P0","status":"automated","requirement":"JWT 合法性","tags":["auth","input"],"steps":["提交伪造、过期、缺少 exp/iat、未知用户、未来 iat Token"],"expected":"全部返回 401；只接受 HS256 和完整必需声明。"},
+    {"id":"SEC-004","priority":"P0","status":"automated","requirement":"本地访问密码","tags":["auth","bruteforce"],"steps":["分别提交缺失、错误、超长和正确密码"],"expected":"前三者被拒绝；正确密码登录；未知字段被拒绝。"},
+    {"id":"SEC-005","priority":"P0","status":"automated","requirement":"限流与代理边界","tags":["rate-limit","proxy"],"steps":["通过变化 X-Forwarded-For 连续登录","调用另一端点"],"expected":"伪造头不能绕过登录限流；不同端点限流桶隔离。"},
+    {"id":"SEC-006","priority":"P0","status":"automated","requirement":"输入白名单与类型","tags":["input","validation"],"steps":["对创建、更新、登录、PDF 发送未知字段和错误类型"],"expected":"返回 400/413；不发生隐式类型转换；无内部异常泄露。"},
+    {"id":"SEC-007","priority":"P0","status":"automated","requirement":"尺寸与数量边界","tags":["input","dos"],"steps":["提交 801 字正文、301 字感受、51 个选项、64KiB 以上请求"],"expected":"在对应边界被 400/413 拒绝。"},
+    {"id":"SEC-008","priority":"P0","status":"automated","requirement":"日期时间合法性","tags":["input","timezone"],"steps":["提交错误日期、过早日期、无时区时间、未来时间"],"expected":"全部拒绝；合法时间统一存储为 UTC RFC3339。"},
+    {"id":"SEC-009","priority":"P0","status":"automated","requirement":"生产启动防误配","tags":["deployment","secret","cors"],"steps":["使用弱密钥、免密、HTTP/localhost/带路径/带 userinfo Origin 启动"],"expected":"服务拒绝启动；完整安全配置可以启动。"},
+    {"id":"SEC-010","priority":"P0","status":"automated","requirement":"遗留攻击面关闭","tags":["surface","permission"],"steps":["访问 groups、goals、achievements API"],"expected":"默认均为 404。"},
+
+    {"id":"DEP-001","priority":"P0","status":"deployment-ready","requirement":"正式身份入口","tags":["deployment","auth"],"steps":["在正式域名配置 Google OAuth 或至少 12 位本地密码","无凭据与正确凭据各登录一次"],"expected":"无凭据不能进入；正确凭据进入自己的账户。"},
+    {"id":"DEP-002","priority":"P0","status":"deployment-ready","requirement":"正式 HTTPS/CORS/密钥","tags":["deployment","tls","cors"],"steps":["配置独立随机 SECRET_KEY/JWT_SECRET 和真实 HTTPS Origin","运行部署 smoke test"],"expected":"HTTPS 页面、登录和 API 正常；其他 Origin 无 CORS 授权。"},
+    {"id":"DEP-003","priority":"P0","status":"pending","requirement":"数据库备份恢复演练","tags":["backup","recovery"],"steps":["备份数据库","在空环境恢复","核对行数和关键状态"],"expected":"记录、分类、感受、珍藏、存档和用户归属 100% 一致，有书面恢复耗时。"},
+
+    {"id":"P1-001","priority":"P1","status":"pending","requirement":"可撤销会话","tags":["auth","session"],"steps":["登录两台设备","撤销其中一台","等待 access token 过期并刷新"],"expected":"被撤销设备不能刷新；另一台不受影响；退出后 refresh token 失效。"},
+    {"id":"P1-002","priority":"P1","status":"pending","requirement":"持久化分布式限流","tags":["rate-limit","redis"],"steps":["跨两个 worker/实例发起登录请求","重启服务后继续"],"expected":"所有实例共享计数和过期策略，不因重启或换实例绕过。"},
+    {"id":"P1-003","priority":"P1","status":"pending","requirement":"草稿与幂等保存","tags":["draft","weak-network"],"steps":["输入后刷新/崩溃恢复","弱网下重复点击保存"],"expected":"草稿可恢复；同一幂等键只创建一条记录。"},
+    {"id":"P1-004","priority":"P1","status":"pending","requirement":"完整编辑","tags":["edit","validation"],"steps":["修改正文、分类、感受、日期和时间","清空可选字段"],"expected":"所有字段可合法修改或清空，并通过相同服务端校验。"},
+    {"id":"P1-005","priority":"P1","status":"pending","requirement":"搜索筛选和日期定位","tags":["search","filter","date"],"steps":["按关键词、分类、珍藏、存档和日期范围组合筛选","点击年度日期点"],"expected":"结果准确、筛选可清除；日期点定位到当天记录。"},
+    {"id":"P1-006","priority":"P1","status":"pending","requirement":"完整数据生命周期","tags":["privacy","delete","import"],"steps":["永久删除记录","删除账户","导出后导入空账户"],"expected":"均有确认和明确结果；删除不可访问；导入后数据与状态完整一致。"},
+    {"id":"P1-007","priority":"P1","status":"pending","requirement":"法律与隐私页面","tags":["privacy","legal"],"steps":["从登录页和设置页打开用户协议与隐私政策"],"expected":"说明数据用途、保存位置、删除方式、第三方认证和非医疗产品定位。"},
+    {"id":"P1-008","priority":"P1","status":"pending","requirement":"无障碍完整闭环","tags":["accessibility","focus","contrast"],"steps":["仅键盘完成登录到保存","屏幕阅读器操作","开启减少动态效果"],"expected":"焦点锁定与恢复正确；状态变化可读；WCAG AA 对比度；动效可减少。"},
+    {"id":"P1-009","priority":"P1","status":"pending","requirement":"前端自动化与 CI 门禁","tags":["test","ci"],"steps":["创建破坏核心闭环的 PR"],"expected":"单元、组件、E2E、lint、build 和 API 测试均在 CI；失败阻止合并。"},
+    {"id":"P1-010","priority":"P1","status":"pending","requirement":"多用户规模化存储决策","tags":["architecture","database"],"steps":["执行并发写入、备份、故障恢复和容量压测"],"expected":"若公开多用户则 PostgreSQL/对象存储方案通过容量目标；若单用户则明确限制。"},
+
+    {"id":"P2-001","priority":"P2","status":"pending","requirement":"系统级温柔提醒","tags":["notification","timezone"],"steps":["授权/拒绝通知","跨时区和勿扰测试","跳过提醒"],"expected":"按用户时区触发；拒绝后不骚扰；无断签、归零或羞耻语言。"},
+    {"id":"P2-002","priority":"P2","status":"pending","requirement":"私有图片附件","tags":["upload","permission"],"steps":["上传合法/超大/伪类型文件","用户 B 访问用户 A 图片","删除记录"],"expected":"合法图片压缩私有保存；非法拒绝；跨用户 404；删除联动清理。"},
+    {"id":"P2-003","priority":"P2","status":"pending","requirement":"自定义分类","tags":["category","migration"],"steps":["新增、改名、换色、排序、合并分类"],"expected":"历史记录无丢失；合并有预览与确认；跨设备一致。"},
+    {"id":"P2-004","priority":"P2","status":"pending","requirement":"隐私分享卡片与 PDF/CSV","tags":["share","export"],"steps":["生成分享卡片与三种导出","检查默认遮罩"],"expected":"只能用户主动触发；默认隐藏感受和身份；导出格式可打开且内容准确。"},
+    {"id":"P2-005","priority":"P2","status":"pending","requirement":"离线跨设备同步","tags":["offline","conflict"],"steps":["两设备离线修改同一记录后上线"],"expected":"冲突有确定策略与版本信息；不静默覆盖；失败可重试。"},
+    {"id":"P2-006","priority":"P2","status":"pending","requirement":"非竞争性洞察","tags":["insight","tone"],"steps":["查看有数据、少数据和中断数月后的回顾"],"expected":"只描述个人主题和已发生努力，不出现排名、断签惩罚或诊断结论。"},
+    {"id":"P2-007","priority":"P2","status":"pending","requirement":"移除兼容层","tags":["migration","cleanup"],"steps":["从旧数据库升级","再部署无旧表的新实例"],"expected":"旧数据完整迁移；确认窗口后才删除旧表/API/命名，且有回滚路径。"}
+  ]
+}

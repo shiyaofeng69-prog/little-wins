@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "user": {
+    "google_id": "little_wins_case_user",
+    "email": "case-user@localhost",
+    "name": "体验验收用户"
+  },
+  "entries": [
+    {"case_id":"DEMO-001","days_ago":0,"minute":5,"mood":4,"content":"今天按时起床了","category":"daily-life","feeling":"清醒了一点","celebrated":true,"archived":false},
+    {"case_id":"DEMO-002","days_ago":0,"minute":35,"mood":4,"content":"终于把拖了很久的邮件回复了","category":"work-study","feeling":"松了一口气","celebrated":false,"archived":false},
+    {"case_id":"DEMO-003","days_ago":0,"minute":65,"mood":4,"content":"喝了一整杯水，也记得吃药","category":"self-care","feeling":"我有在照顾自己","celebrated":true,"archived":false},
+    {"case_id":"DEMO-004","days_ago":1,"minute":15,"mood":5,"content":"出门散步了十分钟","category":"health","feeling":"风吹过来很舒服","celebrated":false,"archived":false},
+    {"case_id":"DEMO-005","days_ago":2,"minute":45,"mood":4,"content":"主动联系了很久没说话的朋友","category":"connection","feeling":"有一点紧张，也很温暖","celebrated":false,"archived":false},
+    {"case_id":"DEMO-006","days_ago":3,"minute":75,"mood":3,"content":"虽然焦虑，但还是参加了会议","category":"courage","feeling":"坐在那里本身就是勇气","celebrated":true,"archived":false},
+    {"case_id":"DEMO-007","days_ago":6,"minute":20,"mood":4,"content":"只写了一个标题，但终于开始了","category":"work-study","feeling":"启动比想象中容易一点","celebrated":false,"archived":false},
+    {"case_id":"DEMO-008","days_ago":8,"minute":40,"mood":4,"content":"洗了堆了两天的衣服","category":"daily-life","feeling":"房间安静了下来","celebrated":false,"archived":false},
+    {"case_id":"DEMO-009","days_ago":14,"minute":60,"mood":5,"content":"第一次走进健身房，没有马上离开","category":"courage","feeling":"害怕，但我做到了","celebrated":true,"archived":false},
+    {"case_id":"DEMO-010","days_ago":30,"minute":10,"mood":4,"content":"给妈妈打了电话，认真听她讲完一天","category":"connection","feeling":"很踏实","celebrated":false,"archived":false},
+    {"case_id":"DEMO-011","days_ago":60,"minute":30,"mood":3,"content":"累的时候允许自己提前休息","category":"self-care","feeling":"没有责怪自己","celebrated":true,"archived":false},
+    {"case_id":"DEMO-012","days_ago":120,"minute":50,"mood":4,"content":"完成了一次体检预约","category":"health","feeling":"处理掉了一件担心的事","celebrated":false,"archived":false},
+    {"case_id":"DEMO-013","days_ago":180,"minute":70,"mood":4,"content":"整理了桌面的一个小角落 ✨","category":"daily-life","feeling":"空间亮了一点","celebrated":false,"archived":false},
+    {"case_id":"DEMO-014","days_ago":250,"minute":25,"mood":4,"content":"在文档里写下：\n“我先做五分钟。”","category":"work-study","feeling":"五分钟也算开始","celebrated":true,"archived":false},
+    {"case_id":"DEMO-015","days_ago":300,"minute":55,"mood":5,"content":"和朋友说出了真实感受","category":"connection","feeling":"被理解了","celebrated":false,"archived":false},
+    {"case_id":"DEMO-016","days_ago":20,"minute":80,"mood":3,"content":"这是一条已归档的示例记录","category":"daily-life","feeling":"暂时收起来也没关系","celebrated":false,"archived":true},
+    {"case_id":"DEMO-017","days_ago":365,"minute":90,"mood":4,"content":"一年前的今天，我也留下了一点微光","category":"self-care","feeling":"原来我走了这么远","celebrated":true,"archived":false},
+    {"case_id":"DEMO-018","days_ago":4,"minute":95,"mood":4,"content":"回复了消息：谢谢你记得我。🌿","category":"connection","feeling":"温柔是可以被接住的","celebrated":false,"archived":false}
+  ]
+}

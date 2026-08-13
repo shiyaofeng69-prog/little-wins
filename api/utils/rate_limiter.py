@@ -21,19 +21,20 @@ def rate_limit(max_requests=100, window_minutes=15):
             # ProxyFix, when explicitly configured, resolves the trusted proxy
             # hop. Never trust a caller-supplied X-Forwarded-For value here.
             client_ip = request.remote_addr or "unknown"
+            limiter_key = (request.endpoint or f.__name__, client_ip)
             now = datetime.now(timezone.utc)
             window_start = now - timedelta(minutes=window_minutes)
 
             with lock:
                 # Clean old requests
-                request_counts[client_ip] = [
+                request_counts[limiter_key] = [
                     req_time
-                    for req_time in request_counts[client_ip]
+                    for req_time in request_counts[limiter_key]
                     if req_time > window_start
                 ]
 
                 # Check rate limit
-                if len(request_counts[client_ip]) >= max_requests:
+                if len(request_counts[limiter_key]) >= max_requests:
                     return (
                         jsonify(
                             {"error": "Rate limit exceeded. Please try again later."}
@@ -42,7 +43,7 @@ def rate_limit(max_requests=100, window_minutes=15):
                     )
 
                 # Add current request
-                request_counts[client_ip].append(now)
+                request_counts[limiter_key].append(now)
 
             return f(*args, **kwargs)
 

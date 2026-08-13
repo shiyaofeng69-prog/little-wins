@@ -100,6 +100,8 @@ def create_app(config_name="default"):
             origin == "*"
             or urlsplit(origin).scheme != "https"
             or not urlsplit(origin).hostname
+            or bool(urlsplit(origin).username)
+            or bool(urlsplit(origin).password)
             or urlsplit(origin).hostname in {"localhost", "127.0.0.1", "::1"}
             or urlsplit(origin).path not in {"", "/"}
             or bool(urlsplit(origin).query)

@@ -1,6 +1,30 @@
 from functools import wraps
+from datetime import datetime, timezone
 from flask import request, jsonify, current_app, g
 from jose import jwt, JWTError
+
+
+def decode_access_token(token: str):
+    """Decode an access token and enforce the claims every route relies on."""
+    payload = jwt.decode(
+        token, current_app.config["JWT_SECRET_KEY"], algorithms=["HS256"]
+    )
+    user_id = payload.get("user_id")
+    issued_at = payload.get("iat")
+    expires_at = payload.get("exp")
+    if (
+        not isinstance(user_id, int)
+        or isinstance(user_id, bool)
+        or user_id <= 0
+        or not isinstance(issued_at, (int, float))
+        or isinstance(issued_at, bool)
+        or not isinstance(expires_at, (int, float))
+        or isinstance(expires_at, bool)
+    ):
+        raise ValueError("Required token claims are missing or invalid")
+    if issued_at > datetime.now(timezone.utc).timestamp() + 60:
+        raise ValueError("Token issue time is in the future")
+    return payload
 
 
 def require_auth(f):
@@ -21,17 +45,16 @@ def require_auth(f):
             token = auth_header[7:].strip()
             if not token or len(token) > 8192:
                 return jsonify({"error": "Invalid token"}), 401
-            payload = jwt.decode(
-                token, current_app.config["JWT_SECRET_KEY"], algorithms=["HS256"]
-            )
+            payload = decode_access_token(token)
 
             # Store user_id in Flask's g object for use in the route
             user_id = payload.get("user_id")
-            if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
+            user_service = current_app.extensions.get("user_service")
+            if user_service is None or user_service.get_user_by_id(user_id) is None:
                 return jsonify({"error": "Invalid token"}), 401
             g.user_id = user_id
 
-        except JWTError as e:
+        except (JWTError, ValueError) as e:
             if "expired" in str(e).lower():
                 return jsonify({"error": "Token expired"}), 401
             else:

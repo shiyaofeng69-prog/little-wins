@@ -69,7 +69,7 @@ def create_mood_routes(mood_service: MoodService):
             mood_value = _strict_mood(data["mood"])
             date_value = _strict_date(data["date"])
             content_value = _strict_text(data["content"], "content", 800, required=True)
-            time_value = _strict_time(data.get("time"))
+            time_value = _strict_time(data["time"]) if "time" in data else None
             category = _strict_category(data.get("category"))
             feeling = None
             if data.get("feeling") is not None:
@@ -192,44 +192,40 @@ def create_mood_routes(mood_service: MoodService):
                     [] if normalised_options is None else normalised_options
                 )
 
-            if (
-                mood is None
-                and content is None
-                and date is None
-                and time is None
-                and category is None
-                and feeling is None
-                and celebrated is None
-                and archived is None
-                and "selected_options" not in data
-            ):
+            if not data:
                 return jsonify({"error": "No update fields provided"}), 400
 
             mood_value = None
-            if mood is not None:
+            if "mood" in data:
                 mood_value = _strict_mood(mood)
 
             content_value = (
                 _strict_text(content, "content", 800, required=True)
-                if content is not None
+                if "content" in data
                 else None
             )
-            date_value = _strict_date(date) if date is not None else None
-            time_value = _strict_time(time) if time is not None else None
-            category_value = _strict_category(category) if category is not None else None
-            feeling_value = (
-                _strict_text(feeling, "feeling", 300, required=False)
-                if feeling is not None
-                else None
-            )
+            date_value = _strict_date(date) if "date" in data else None
+            time_value = _strict_time(time) if "time" in data else None
+            category_value = None
+            if "category" in data:
+                category_value = (
+                    "" if category in (None, "") else _strict_category(category)
+                )
+            feeling_value = None
+            if "feeling" in data:
+                feeling_value = (
+                    ""
+                    if feeling is None
+                    else _strict_text(feeling, "feeling", 300, required=False)
+                )
             celebrated_value = (
                 _strict_bool(celebrated, "celebrated")
-                if celebrated is not None
+                if "celebrated" in data
                 else None
             )
             archived_value = (
                 _strict_bool(archived, "archived")
-                if archived is not None
+                if "archived" in data
                 else None
             )
 
@@ -376,8 +372,6 @@ def _strict_date(raw: Any) -> str:
 
 
 def _strict_time(raw: Any) -> Optional[str]:
-    if raw is None:
-        return None
     if not isinstance(raw, str):
         raise ValueError("time must be an RFC3339 string")
     try:

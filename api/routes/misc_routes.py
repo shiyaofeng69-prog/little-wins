@@ -29,12 +29,11 @@ def create_misc_routes():
     @require_auth
     @rate_limit(max_requests=5, window_minutes=1)
     def export_pdf():
-        if not MarkdownPdf:
-            return jsonify({"error": "markdown-pdf module not installed"}), 501
-            
         data = request.get_json(silent=True)
         if not isinstance(data, dict) or "content" not in data:
             return jsonify({"error": "Content is required"}), 400
+        if set(data) != {"content"}:
+            return jsonify({"error": "Only content is accepted"}), 400
             
         content = data.get("content", "")
         if not isinstance(content, str):
@@ -43,6 +42,9 @@ def create_misc_routes():
             return jsonify({"error": "Content is required"}), 400
         if len(content) > 20_000:
             return jsonify({"error": "Content is too long"}), 413
+
+        if not MarkdownPdf:
+            return jsonify({"error": "markdown-pdf module not installed"}), 501
         
         pdf = MarkdownPdf()
         pdf.add_section(Section(content))

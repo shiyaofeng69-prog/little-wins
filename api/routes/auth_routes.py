@@ -7,6 +7,7 @@ from jose import jwt, JWTError
 from datetime import datetime, timedelta, timezone
 from api.services.user_service import UserService
 from api.utils.rate_limiter import rate_limit
+from api.utils.auth_middleware import decode_access_token
 from api.config import get_config
 
 
@@ -80,9 +81,7 @@ def create_auth_routes(user_service: UserService):
             token = auth_header[7:].strip()
             if not token or len(token) > 8192:
                 return jsonify({"error": "Invalid token"}), 401
-            payload = jwt.decode(
-                token, current_app.config["JWT_SECRET_KEY"], algorithms=["HS256"]
-            )
+            payload = decode_access_token(token)
 
             user_id = payload.get("user_id")
             if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
@@ -103,7 +102,7 @@ def create_auth_routes(user_service: UserService):
                 }
             )
 
-        except JWTError as e:
+        except (JWTError, ValueError) as e:
             if "expired" in str(e).lower():
                 return jsonify({"error": "Token expired"}), 401
             else:
@@ -120,8 +119,10 @@ def create_auth_routes(user_service: UserService):
         """Local self-host login: ensure a single default user and issue JWT."""
         try:
             cfg = get_config()
-            data = request.get_json(silent=True) or {}
-            if not isinstance(data, dict):
+            data = request.get_json(silent=True)
+            if data is None:
+                data = {}
+            elif not isinstance(data, dict):
                 return jsonify({"error": "JSON object required"}), 400
             if set(data) - {"password"}:
                 return jsonify({"error": "Only password is accepted"}), 400
