@@ -1,0 +1,77 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Map / Diagram · theme: Coral · design-system: design.md · designed-as-app */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 */
+
+:root {
+  --color-paper: oklch(97.5% 0.008 70);
+  --color-paper-2: oklch(95.5% 0.012 66);
+  --color-paper-3: oklch(92.5% 0.014 62);
+  --color-surface: oklch(99% 0.005 70);
+  --color-surface-raised: oklch(100% 0.003 70);
+  --color-ink: oklch(35% 0.025 48);
+  --color-ink-2: oklch(44% 0.022 48);
+  --color-neutral: oklch(43% 0.022 50);
+  --color-muted: oklch(46% 0.02 52);
+  --color-rule: oklch(89% 0.012 62);
+  --color-rule-2: oklch(80% 0.016 58);
+  --color-accent: oklch(64% 0.13 32);
+  --color-accent-soft: oklch(94% 0.035 38);
+  --color-accent-ink: oklch(27% 0.035 38);
+  --color-focus: oklch(48% 0.15 30);
+  --color-success: oklch(49% 0.09 155);
+  --color-error: oklch(51% 0.15 28);
+  --color-overlay: oklch(25% 0.02 48 / 0.34);
+
+  --color-category-self-care: oklch(91% 0.045 325);
+  --color-category-work-study: oklch(90% 0.045 250);
+  --color-category-health: oklch(90% 0.045 155);
+  --color-category-daily-life: oklch(92% 0.055 82);
+  --color-category-connection: oklch(91% 0.05 55);
+  --color-category-courage: oklch(90% 0.05 300);
+
+  --font-display: "Noto Serif SC", "Songti SC", ui-serif, Georgia, serif;
+  --font-body: "Inter", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --font-outlier: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.25rem;
+  --text-lg: 1.5625rem;
+  --text-xl: 1.953rem;
+  --text-2xl: 2.441rem;
+  --text-display: clamp(2.25rem, 4vw + 0.5rem, 4.5rem);
+
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+  --space-4xl: 9rem;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+
+  --rule-hair: 1px;
+  --rule-fine: 2px;
+  --radius-card: 18px;
+  --radius-pill: 999px;
+  --radius-input: 12px;
+  --radius-modal: 28px;
+  --shadow-card: 0 16px 40px oklch(28% 0.02 48 / 0.08);
+
+  --z-base: 1;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+}

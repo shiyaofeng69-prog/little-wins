@@ -1,0 +1,10 @@
+{
+  "date": "2026-08-13",
+  "framework": "React 19 + Vite 7 + React Router 7",
+  "font_stack": "Inter body with Noto Serif SC / Songti SC display",
+  "palette": "warm paper, warm ink, restrained coral accent",
+  "motion": "motion-cut; no animation library",
+  "spacing": "existing 8px scale migrating to semantic 4px tokens",
+  "preserve": ["brand direction", "routes", "API", "authentication", "settings"],
+  "introduce": ["design tokens", "period view boundaries", "purposeful feedback", "responsive and state discipline"]
+}

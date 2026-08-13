@@ -1,0 +1,18 @@
+[
+  {
+    "date": "2026-08-13",
+    "scope": "app",
+    "macrostructure": "Map / Diagram",
+    "theme": "Coral",
+    "enrichment": "none",
+    "brief": "Little Wins five-period narrative views and evidence-based encouragement"
+  },
+  {
+    "date": "2026-08-13",
+    "scope": "responsive-qa",
+    "macrostructure": "Map / Diagram with distinct time narratives",
+    "theme": "Coral",
+    "enrichment": "inline evidence acknowledgement",
+    "brief": "Verified five routes, legacy alias, save feedback, and 320/375/414/768 overflow safety"
+  }
+]

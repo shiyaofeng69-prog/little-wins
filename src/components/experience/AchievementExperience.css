@@ -1,4 +1,4 @@
-:root { --win-paper: #f8f7f3; --win-ink: #554b43; --win-muted: #9c938a; --win-line: #e9e5df; --win-coral: #f1a18e; }
+:root { --win-paper: var(--color-paper); --win-ink: var(--color-ink); --win-muted: var(--color-muted); --win-line: var(--color-rule); --win-coral: var(--color-accent); }
 .win-app, .onboarding { min-height: 100vh; color: var(--win-ink); background-color: var(--win-paper); background-image: linear-gradient(rgba(110,99,88,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(110,99,88,.055) 1px, transparent 1px); background-size: 48px 48px; font-family: Inter, "PingFang SC", sans-serif; }
 .win-app h1, .win-app h2, .win-app h3, .onboarding h1, .onboarding h2, .onboarding h3 { color: var(--win-ink); }
 .win-app button, .onboarding button { font-family: inherit; }
@@ -10,6 +10,8 @@
 .win-brand b { font-family: Georgia, serif; font-size: .9rem; letter-spacing: .22em; }
 .win-period-nav { display: flex; align-self: stretch; gap: 34px; }
 .win-period-nav button { position: relative; padding: 0 2px; color: #9a928a; background: none; border: 0; font-size: .76rem; font-weight: 700; cursor: pointer; }
+.win-period-nav button { white-space: nowrap; }
+.win-period-nav button:active { color: var(--win-coral); }
 .win-period-nav button.is-active { color: #5a5149; }
 .win-period-nav button.is-active::after { position: absolute; right: 0; bottom: 20px; left: 0; height: 2px; background: var(--win-coral); content: ""; }
 .win-header__actions { display: flex; justify-self: end; align-items: center; gap: 12px; }
@@ -20,6 +22,8 @@
 .win-compose-trigger { gap: 9px; padding: 8px 16px 8px 8px; border-radius: 999px; }
 .win-compose-trigger svg { box-sizing: content-box; padding: 4px; border-right: 1px solid #e8e3dd; }
 .win-compose-trigger span { font-size: .72rem; letter-spacing: .04em; }
+.win-compose-trigger { white-space: nowrap; }
+.win-compose-trigger:active, .win-icon-button:active { transform: translateY(1px); }
 .win-reference { position: fixed; z-index: 20; top: 72px; bottom: 46px; left: 0; width: 48px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 22px 0; color: #c5beb6; background: rgba(249,248,245,.7); border-right: 1px solid var(--win-line); font: 600 .56rem Georgia, serif; letter-spacing: .24em; }
 .win-reference span { writing-mode: vertical-rl; }
 .win-canvas { min-height: calc(100vh - 118px); padding: 72px 0 46px 48px; }
@@ -187,11 +191,11 @@
 @keyframes win-spin { to { transform: rotate(360deg); } }
 @media (max-width: 920px) {
   .win-header { grid-template-columns: 1fr auto; padding-left: 66px; }
-  .win-period-nav { position: fixed; right: 0; bottom: 46px; left: 48px; z-index: 30; height: 50px; justify-content: space-around; gap: 0; background: rgba(250,249,246,.96); border-top: 1px solid var(--win-line); }
+  .win-period-nav { position: fixed; top: 72px; right: 0; bottom: auto; left: 48px; z-index: 30; height: 50px; justify-content: space-around; gap: 0; background: rgba(250,249,246,.96); border-bottom: 1px solid var(--win-line); }
   .win-period-nav button.is-active::after { bottom: 8px; }
   .win-compose-trigger span { display: none; }
   .win-status { display: none; }
-  .win-canvas { padding-bottom: 50px; }
+  .win-canvas { padding-top: 122px; padding-bottom: 50px; }
   .today-view { width: calc(100vw - 88px); }
   .year-review { padding-inline: 35px; }
   .year-counts { flex-wrap: wrap; gap: 25px; }
@@ -208,8 +212,8 @@
   .win-brand i, .win-brand b { display: none; }
   .win-header__actions { gap: 6px; }
   .win-reference { display: none; }
-  .win-canvas { padding: 62px 0 50px; }
-  .win-period-nav { bottom: 0; left: 0; }
+  .win-canvas { padding: 112px 0 50px; }
+  .win-period-nav { top: 62px; bottom: auto; left: 0; }
   .today-view { width: calc(100vw - 28px); margin-top: 40px; padding-top: 70px; }
   .today-line { left: 20px; }
   .today-date { left: 20px; transform: none; }

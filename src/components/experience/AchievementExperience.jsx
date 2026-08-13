@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, Code2, Download,
-  Edit3, Heart, Image as ImageIcon, Loader2, LogOut, Plus,
+  ArrowLeft, ArrowRight, Check, Clock3, Code2, Download,
+  Edit3, Image as ImageIcon, Loader2, LogOut, Plus,
   Settings, Sparkles, Trash2, UploadCloud, UserRound, X,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -11,45 +11,28 @@ import { useToast } from '../ui/ToastProvider';
 import { useMoodData } from '../../hooks/useMoodData';
 import apiService from '../../services/api';
 import { classifyWin, WIN_CATEGORIES } from '../../utils/winClassifier';
+import { PERIODS, periodDefinition } from '../../features/achievements/config/periods.js';
+import { buildEncouragement } from '../../features/achievements/domain/encouragement.js';
+import { dateOf, localDateIso } from '../../features/achievements/domain/entryDate.js';
+import { normalizeEntry } from '../../features/achievements/domain/normalizeEntry.js';
+import { entriesForPeriod } from '../../features/achievements/domain/periodSelectors.js';
+import { SaveAcknowledgement } from '../../features/achievements/feedback/SaveAcknowledgement.jsx';
+import { usePeriodRoute } from '../../features/achievements/hooks/usePeriodRoute.js';
+import { PeriodViewRouter } from '../../features/achievements/views/PeriodViews.jsx';
 import './AchievementExperience.css';
+import '../../features/achievements/styles/period-views.css';
 
-const PERIODS = [
-  { key: 'today', label: '今日', title: 'TODAY' },
-  { key: 'week', label: '今周', title: 'BOARD' },
-  { key: 'month', label: '今月', title: 'COLLECTION' },
-  { key: 'half', label: '半年', title: 'CHRONICLE' },
-  { key: 'year', label: '今年', title: '年度回顾' },
-];
 const META_KEY = 'little-wins:achievement-meta:v1';
 const LEGACY_META_KEY = 'micro-wins:achievement-meta:v1';
-const periodKeys = new Set(PERIODS.map((item) => item.key));
 
 const readJson = (key, fallback) => {
   try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; }
-};
-const dateOf = (entry) => {
-  const date = new Date(entry.created_at || entry.time || `${entry.date}T12:00:00`);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
-const dateKey = (date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-const localDateIso = (date = new Date()) => {
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
 };
 const idempotencyKey = () => globalThis.crypto?.randomUUID?.() || `win-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const localTimeValue = (entry) => {
   const value = dateOf(entry);
   if (!value) return '12:00';
   return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
-};
-const startFor = (period) => {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  if (period === 'week') start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-  if (period === 'month') start.setDate(1);
-  if (period === 'half') start.setMonth(start.getMonth() - 5, 1);
-  if (period === 'year') start.setMonth(0, 1);
-  return start;
 };
 const formatTime = (entry) => dateOf(entry)?.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }) || '--:--';
 
@@ -80,7 +63,7 @@ function AchievementHeader({ period, setPeriod, onCompose, isSettings }) {
         </nav>
       )}
       <div className="win-header__actions">
-        {!isSettings && <button className="win-compose-trigger" onClick={onCompose}><Plus size={20} /><span>记下一个小胜利</span></button>}
+        {!isSettings && <button className="win-compose-trigger" onClick={onCompose} aria-label="记下一个小胜利"><Plus size={20} /><span>记下一个小胜利</span></button>}
         <button className="win-icon-button" onClick={() => navigate('/dashboard/settings')} aria-label="设置"><Settings size={18} /></button>
         {canLogout && <button className="win-icon-button" onClick={logout} aria-label="退出登录"><LogOut size={17} /></button>}
       </div>
@@ -94,89 +77,6 @@ function SideReference({ section }) {
 
 function CategoryPill({ category }) {
   return <span className="win-category" style={{ '--category-color': category.color }}><i />{category.label}<b>· {category.key.toUpperCase()}</b></span>;
-}
-
-function WinCard({ entry, meta, onOpen, compact = false }) {
-  const inferred = classifyWin(entry);
-  const category = WIN_CATEGORIES.find((item) => item.key === meta?.category) || inferred.category;
-  return (
-    <button className={`win-card ${compact ? 'is-compact' : ''}`} onClick={() => onOpen(entry)}>
-      <div><CategoryPill category={category} /><time>{formatTime(entry)}</time></div>
-      <h3>{inferred.title}</h3>
-      <p>{inferred.encouragement}</p>
-      {meta?.celebrated && <Heart className="win-card__heart" size={15} fill="currentColor" />}
-    </button>
-  );
-}
-
-function TodayTimeline({ entries, meta, onOpen }) {
-  const today = new Date();
-  return (
-    <section className="today-view">
-      <div className="today-date">{today.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</div>
-      <div className="today-line" />
-      {entries.map((entry, index) => {
-        const category = WIN_CATEGORIES.find((item) => item.key === meta[entry.id]?.category) || classifyWin(entry).category;
-        return (
-          <article className={`timeline-item ${index % 2 ? 'is-left' : 'is-right'}`} key={entry.id}>
-            <span className="timeline-item__time">{formatTime(entry)}</span>
-            <i className="timeline-item__dot" style={{ background: category.color }} />
-            <WinCard entry={entry} meta={meta[entry.id]} onOpen={onOpen} />
-          </article>
-        );
-      })}
-    </section>
-  );
-}
-
-function CollectionBoard({ entries, meta, onOpen, period }) {
-  return (
-    <section className={`collection-view collection-view--${period}`}>
-      <div className="collection-watermark">每一个做到，都值得被看见</div>
-      {entries.map((entry, index) => (
-        <div className={`collection-item collection-item--${index % 8}`} key={entry.id}>
-          <WinCard entry={entry} meta={meta[entry.id]} onOpen={onOpen} compact />
-        </div>
-      ))}
-      {entries.length > 2 && <div className="memory-polaroid memory-polaroid--one"><div /><em>Morning Gold</em></div>}
-      {entries.length > 4 && <div className="memory-polaroid memory-polaroid--two"><div /><em>Quiet breath</em></div>}
-    </section>
-  );
-}
-
-function YearReview({ entries, meta }) {
-  const year = new Date().getFullYear();
-  const counts = WIN_CATEGORIES.map((category) => ({ category, count: entries.filter((entry) => (meta[entry.id]?.category || classifyWin(entry).category.key) === category.key).length })).filter((item) => item.count);
-  const activeDays = new Set(entries.map((entry) => dateOf(entry)).filter(Boolean).map(dateKey)).size;
-  const daysInYear = Math.round((new Date(year + 1, 0, 1) - new Date(year, 0, 1)) / 86400000);
-  const dayDots = Array.from({ length: daysInYear }, () => null);
-  entries.forEach((entry) => {
-    const date = dateOf(entry);
-    if (!date) return;
-    const dayOfYear = Math.floor(
-      (Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) - Date.UTC(year, 0, 1)) / 86400000,
-    );
-    if (dayOfYear >= 0 && dayOfYear < daysInYear) dayDots[dayOfYear] = entry;
-  });
-  const cared = counts.find((item) => item.category.key === 'self-care')?.count || 0;
-  return (
-    <section className="year-review">
-      <div className="year-review__intro">
-        <h1><b>{year}：</b>微小而确定的光芒</h1>
-        <p>在这一年里，你一共标记了 <strong>{entries.length}</strong> 次努力。每一个圆点，都是一次对生活或对自己的拥抱。</p>
-      </div>
-      <div className="year-map">
-        <div className="year-counts">{counts.map(({ category, count }) => <div key={category.key}><span>{category.label}</span><strong>{count}</strong><small>次</small></div>)}</div>
-        <div className="year-dots">{dayDots.map((entry, index) => { const category = entry ? WIN_CATEGORIES.find((item) => item.key === (meta[entry.id]?.category || classifyWin(entry).category.key)) : null; return <i key={index} style={{ background: category?.color || '#eeece7' }} />; })}</div>
-        <div className="year-months"><span>JAN</span><span>MAR</span><span>MAY</span><span>JUL</span><span>SEP</span><span>NOV</span><span>DEC</span></div>
-      </div>
-      <div className="year-insights">
-        <article><Clock3 /><h3>你回来过的日子</h3><strong>{activeDays}</strong><span> DAYS NOTICED</span><p>不要求连续。每一次回来，都算数。</p></article>
-        <article className="is-accent"><Sparkles /><h3>被看见的努力</h3><strong>{entries.length}</strong><span> MOMENTS</span><p>它们没有因为微小而失去意义。</p></article>
-        <article><Heart /><h3>自我关怀力</h3><strong>{cared}</strong><span> GENTLE MOMENTS</span><p>你正在练习把温柔也留给自己。</p></article>
-      </div>
-    </section>
-  );
 }
 
 function EmptyBoard({ onCompose, hasOtherEntries }) {
@@ -227,7 +127,6 @@ function ComposeModal({ onClose, onSaved, initialCategory }) {
       localStorage.removeItem(draftKey);
       setSaveState('saved');
       onSaved(entry, { category: effectiveCategory, feeling: feeling.trim() });
-      show('已经替你收好了。这件事值得被记住。', 'success');
     } catch (error) {
       console.error(error);
       const message = error?.message || '暂时无法连接服务';
@@ -351,21 +250,20 @@ function SettingsPage({ entries, meta, onRestore }) {
 
 export default function AchievementExperience() {
   const location = useLocation();
-  const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
+  const { params, period, patchParams, setPeriod } = usePeriodRoute();
   const { user } = useAuth();
   const { show } = useToast();
   const { pastEntries, setPastEntries, loading, error, refreshHistory } = useMoodData();
   const [meta, setMeta] = useState({});
   const [metaLoaded, setMetaLoaded] = useState(false);
+  const [acknowledgement, setAcknowledgement] = useState(null);
+  const [newEntryId, setNewEntryId] = useState(null);
   const migrationStarted = useRef(false);
   const onboardingKey = user?.id ? `little-wins:onboarded:user:${user.id}` : 'little-wins:onboarded';
   const [onboarded, setOnboarded] = useState(() => (localStorage.getItem(onboardingKey) || localStorage.getItem('little-wins:onboarded') || localStorage.getItem('micro-wins:onboarded')) === 'true');
   const isSettings = location.pathname.endsWith('/settings');
-  const requestedPeriod = params.get('period') || 'today';
-  const period = periodKeys.has(requestedPeriod) ? requestedPeriod : 'today';
   const selectedId = params.get('achievement');
-  const visibleEntries = useMemo(() => pastEntries.filter((entry) => { const date = dateOf(entry); return date && !entry.archived_at && !meta[entry.id]?.archived && date >= startFor(period) && date <= new Date(); }).sort((a, b) => dateOf(a) - dateOf(b)), [pastEntries, meta, period]);
+  const visibleEntries = useMemo(() => entriesForPeriod(pastEntries, meta, period), [pastEntries, meta, period]);
   const selectedEntry = pastEntries.find((entry) => String(entry.id) === selectedId);
   const scopedMetaKey = user?.id ? `${META_KEY}:user:${user.id}` : META_KEY;
   const serverMetaMigrationKey = user?.id ? `little-wins:server-meta-migration:v1:user:${user.id}` : null;
@@ -428,12 +326,24 @@ export default function AchievementExperience() {
       }
     })();
   }, [meta, metaLoaded, pastEntries, refreshHistory, serverMetaMigrationKey, user?.id]);
-  useEffect(() => { if (requestedPeriod !== period) navigate('/dashboard?period=today', { replace: true }); }, [navigate, period, requestedPeriod]);
-  const patchParams = (patch) => { const next = new URLSearchParams(params); Object.entries(patch).forEach(([key, value]) => value == null ? next.delete(key) : next.set(key, value)); setParams(next); };
+  useEffect(() => {
+    if (!acknowledgement) return undefined;
+    const timer = window.setTimeout(() => setAcknowledgement(null), 6500);
+    return () => window.clearTimeout(timer);
+  }, [acknowledgement]);
   const openCompose = () => patchParams({ compose: '1' });
-  const onSaved = (entry, entryMeta) => { setPastEntries((items) => [entry, ...items]); setMeta((current) => ({ ...current, [entry.id]: { ...current[entry.id], ...entryMeta } })); patchParams({ compose: null }); };
+  const onSaved = (entry, entryMeta) => {
+    const nextMeta = { ...meta, [entry.id]: { ...meta[entry.id], ...entryMeta } };
+    const normalized = normalizeEntry(entry, nextMeta[entry.id]);
+    const categoryCount = entriesForPeriod([entry, ...pastEntries], nextMeta, period).filter((item) => item.category === normalized.category).length;
+    const categoryLabel = WIN_CATEGORIES.find((item) => item.key === normalized.category)?.label || '';
+    setPastEntries((items) => [entry, ...items]);
+    setMeta(nextMeta);
+    setNewEntryId(entry.id);
+    setAcknowledgement(buildEncouragement(normalized, { categoryCount, categoryLabel, rangeLabel: periodDefinition(period).rangeLabel }));
+    patchParams({ compose: null });
+  };
   const updateEntry = (updated) => setPastEntries((items) => items.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
-  const setPeriod = (nextPeriod) => { navigate(`/dashboard?period=${nextPeriod}`); };
   if (!onboarded && !loading && pastEntries.length === 0) return <Onboarding onBegin={() => { localStorage.setItem(onboardingKey, 'true'); localStorage.removeItem('little-wins:onboarded'); localStorage.removeItem('micro-wins:onboarded'); setOnboarded(true); setTimeout(openCompose, 0); }} onSkip={() => { localStorage.setItem(onboardingKey, 'true'); localStorage.removeItem('little-wins:onboarded'); localStorage.removeItem('micro-wins:onboarded'); setOnboarded(true); }} />;
   return (
     <div className="win-app">
@@ -441,15 +351,14 @@ export default function AchievementExperience() {
       <SideReference section={isSettings ? 'SETTINGS' : period.toUpperCase()} />
       {isSettings ? <SettingsPage entries={pastEntries} meta={meta} onRestore={async (entry) => { try { const response = await apiService.updateMoodEntry(entry.id, { archived: false }); updateEntry(response.entry); setMeta((current) => ({ ...current, [entry.id]: { ...current[entry.id], archived: false } })); show('已经恢复到看板。', 'success'); } catch { show('暂时没有恢复成功，请再试一次。', 'error'); refreshHistory(); } }} /> : (
         <main className="win-canvas">
+          <SaveAcknowledgement message={acknowledgement} onClose={() => setAcknowledgement(null)} />
           {loading && <div className="win-loading"><Loader2 className="spin" /> 正在展开你的微光…</div>}
           {!loading && error && <div className="win-loading">暂时没有打开收藏盒。<button onClick={refreshHistory}>重新读取</button></div>}
           {!loading && !error && visibleEntries.length === 0 && <EmptyBoard onCompose={openCompose} hasOtherEntries={pastEntries.length > 0} />}
-          {!loading && !error && visibleEntries.length > 0 && period === 'today' && <TodayTimeline entries={visibleEntries} meta={meta} onOpen={(entry) => patchParams({ achievement: entry.id })} />}
-          {!loading && !error && visibleEntries.length > 0 && ['week', 'month', 'half'].includes(period) && <CollectionBoard entries={visibleEntries} meta={meta} onOpen={(entry) => patchParams({ achievement: entry.id })} period={period} />}
-          {!loading && !error && visibleEntries.length > 0 && period === 'year' && <YearReview entries={visibleEntries} meta={meta} />}
+          {!loading && !error && visibleEntries.length > 0 && <PeriodViewRouter period={period} entries={visibleEntries} onOpen={(entry) => patchParams({ achievement: entry.id })} newEntryId={newEntryId} />}
         </main>
       )}
-      {!isSettings && <footer className="win-status"><span><i />这里已经收藏了 <strong>{visibleEntries.length}</strong> 个值得肯定的瞬间</span><span><CalendarDays /> {period.toUpperCase()} · {Math.min(100, visibleEntries.length * 8)}%</span></footer>}
+      {!isSettings && <footer className="win-status"><span><i />这里已经收藏了 <strong>{visibleEntries.length}</strong> 个值得肯定的瞬间</span><span>{periodDefinition(period).rangeLabel} · 只记录真实发生的做到</span></footer>}
       {!isSettings && params.get('compose') === '1' && <ComposeModal onClose={() => patchParams({ compose: null })} onSaved={onSaved} />}
       {!isSettings && selectedEntry && <DetailModal entry={selectedEntry} meta={meta[selectedEntry.id]} onClose={() => patchParams({ achievement: null })} onUpdate={updateEntry} onMetaUpdate={(patch) => setMeta((current) => ({ ...current, [selectedEntry.id]: { ...current[selectedEntry.id], ...patch } }))} onArchive={async () => { try { const response = await apiService.updateMoodEntry(selectedEntry.id, { archived: true }); updateEntry(response.entry); setMeta((current) => ({ ...current, [selectedEntry.id]: { ...current[selectedEntry.id], archived: true } })); patchParams({ achievement: null }); show('已经移入存档，可以随时在设置中恢复。', 'success'); } catch { show('暂时没有存档成功，请再试一次。', 'error'); refreshHistory(); } }} onDelete={async () => { try { await apiService.deleteMoodEntry(selectedEntry.id); setPastEntries((items) => items.filter((item) => item.id !== selectedEntry.id)); setMeta((current) => { const next = { ...current }; delete next[selectedEntry.id]; return next; }); patchParams({ achievement: null }); show('这条记录已经永久删除。', 'success'); } catch { show('暂时没有删除成功，请再试一次。', 'error'); throw new Error('delete failed'); } }} onCelebrate={async () => { const next = !meta[selectedEntry.id]?.celebrated; try { const response = await apiService.updateMoodEntry(selectedEntry.id, { celebrated: next }); updateEntry(response.entry); setMeta((current) => ({ ...current, [selectedEntry.id]: { ...current[selectedEntry.id], celebrated: next } })); } catch { show('暂时没有保存珍藏状态，请再试一次。', 'error'); refreshHistory(); } }} />}
     </div>

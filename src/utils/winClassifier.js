@@ -1,10 +1,10 @@
 const CATEGORIES = [
-  { key: 'self-care', label: '自我照顾', color: '#f5dfdc', keywords: ['休息', '睡', '洗澡', '吃饭', '喝水', '情绪', '放松', '照顾自己', '冥想', '呼吸'] },
-  { key: 'work-study', label: '工作与学习', color: '#dfe8e8', keywords: ['工作', '学习', '邮件', '会议', '报告', '作业', '阅读', '写完', '提交', '代码', '复习', '课程'] },
-  { key: 'health', label: '健康与运动', color: '#dfeadf', keywords: ['运动', '跑步', '散步', '健身', '服药', '看医生', '预约', '体检', '瑜伽', '走路'] },
-  { key: 'daily-life', label: '生活与日常', color: '#fff3c8', keywords: ['整理', '打扫', '做饭', '洗衣', '购物', '收拾', '出门', '起床', '家务', '买菜'] },
-  { key: 'connection', label: '关系与连接', color: '#f4e3cf', keywords: ['朋友', '家人', '妈妈', '爸爸', '同事', '联系', '感谢', '帮助', '陪伴', '聊天', '道歉'] },
-  { key: 'courage', label: '勇气与突破', color: '#e8e1ef', keywords: ['终于', '害怕', '焦虑', '尝试', '第一次', '鼓起勇气', '没有逃避', '开始', '面对', '突破'] },
+  { key: 'self-care', label: '自我照顾', color: 'var(--color-category-self-care)', keywords: ['休息', '睡', '洗澡', '吃饭', '喝水', '情绪', '放松', '照顾自己', '冥想', '呼吸'] },
+  { key: 'work-study', label: '工作与学习', color: 'var(--color-category-work-study)', keywords: ['工作', '学习', '邮件', '会议', '报告', '作业', '阅读', '写完', '提交', '代码', '复习', '课程'] },
+  { key: 'health', label: '健康与运动', color: 'var(--color-category-health)', keywords: ['运动', '跑步', '散步', '健身', '服药', '看医生', '预约', '体检', '瑜伽', '走路'] },
+  { key: 'daily-life', label: '生活与日常', color: 'var(--color-category-daily-life)', keywords: ['整理', '打扫', '做饭', '洗衣', '购物', '收拾', '出门', '起床', '家务', '买菜'] },
+  { key: 'connection', label: '关系与连接', color: 'var(--color-category-connection)', keywords: ['朋友', '家人', '妈妈', '爸爸', '同事', '联系', '感谢', '帮助', '陪伴', '聊天', '道歉'] },
+  { key: 'courage', label: '勇气与突破', color: 'var(--color-category-courage)', keywords: ['终于', '害怕', '焦虑', '尝试', '第一次', '鼓起勇气', '没有逃避', '开始', '面对', '突破'] },
 ];
 
 const ACTIONS = [
@@ -51,6 +51,7 @@ export const classifyWin = (entry) => {
     title: makeTitle(content),
     category: selectedCategory,
     action: action?.label || '做到了',
+    actionKey: action?.key || 'noticed',
     encouragement: ENCOURAGEMENTS[action?.key] || ENCOURAGEMENTS.default,
     rotation: ((seed % 7) - 3) * 0.35,
     variant: seed % 4,
@@ -58,3 +59,5 @@ export const classifyWin = (entry) => {
 };
 
 export const WIN_CATEGORIES = CATEGORIES;
+
+export const categoryForKey = (key) => CATEGORIES.find((category) => category.key === key) || CATEGORIES[3];
