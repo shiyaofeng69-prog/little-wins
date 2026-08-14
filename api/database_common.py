@@ -30,8 +30,13 @@ class SQLQueries:
     )
 
     GET_USER_BY_ID = (
-        "SELECT id, google_id, email, name, avatar_url, session_version, created_at, last_login "
+        "SELECT id, google_id, email, name, avatar_url, password_hash, auth_provider, session_version, created_at, last_login "
         "FROM users WHERE id = ?"
+    )
+
+    GET_USER_BY_EMAIL = (
+        "SELECT id, google_id, email, name, avatar_url, password_hash, auth_provider, session_version, created_at, last_login "
+        "FROM users WHERE lower(email) = lower(?)"
     )
 
     UPSERT_USER = (

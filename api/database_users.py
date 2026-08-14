@@ -43,6 +43,42 @@ class UsersMixin(DatabaseConnectionMixin):
             row = cursor.fetchone()
             return dict(row) if row else None
 
+    def get_user_by_email(self, email: str) -> Optional[Dict]:
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(SQLQueries.GET_USER_BY_EMAIL, (email,)).fetchone()
+            return dict(row) if row else None
+
+    def create_email_user(
+        self,
+        synthetic_id: str,
+        email: str,
+        name: str,
+        password_hash: str,
+    ) -> Dict:
+        """Create an email account atomically and return its full row."""
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                existing = conn.execute(SQLQueries.GET_USER_BY_EMAIL, (email,)).fetchone()
+                if existing:
+                    raise sqlite3.IntegrityError("email already exists")
+                cursor = conn.execute(
+                    """
+                    INSERT INTO users
+                        (google_id, email, name, avatar_url, password_hash, auth_provider)
+                    VALUES (?, ?, ?, NULL, ?, 'email')
+                    """,
+                    (synthetic_id, email, name, password_hash),
+                )
+                row = conn.execute(SQLQueries.GET_USER_BY_ID, (cursor.lastrowid,)).fetchone()
+                conn.commit()
+                return dict(row)
+            except Exception:
+                conn.rollback()
+                raise
+
     def update_user_last_login(self, user_id: int) -> None:
         with self._connect() as conn:
             conn.execute(

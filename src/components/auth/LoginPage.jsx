@@ -1,49 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Lock, Sparkles } from 'lucide-react';
+import { ArrowRight, Loader2, Lock, Sparkles } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useConfig } from '../../contexts/ConfigContext';
-import './LoginPage.css';
+import apiService from '../../services/api';
+import { migrateGuestWins } from '../../features/account/migrateGuestWins.js';
+import '../../features/account/components/AccountJourney.css';
 
 // Prefer runtime config-provided client ID to avoid build-time mismatch.
 // Falls back to Vite env only if present; otherwise null to block incorrect init.
 const FALLBACK_GOOGLE_CLIENT_ID =
   (import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) || null;
 
-const LoadingSpinner = () => (
-  <svg className="login-page__spinner" viewBox="0 0 24 24" aria-hidden="true">
-    <circle className="login-page__spinner-circle" cx="12" cy="12" r="10" />
-  </svg>
-);
-
-const GoogleIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-    <path
-      d="M17.64 9.20454C17.64 8.56636 17.5827 7.95272 17.4764 7.36363H9V10.845H13.8436C13.635 11.97 13.0009 12.9231 12.0477 13.5613V15.8195H14.9564C16.6582 14.2527 17.64 11.9454 17.64 9.20454Z"
-      fill="#4285F4"
-    />
-    <path
-      d="M9 18C11.43 18 13.4673 17.1941 14.9564 15.8195L12.0477 13.5613C11.2418 14.1013 10.2109 14.4204 9 14.4204C6.65591 14.4204 4.67182 12.8372 3.96409 10.71H0.957275V13.0418C2.43818 15.9831 5.48182 18 9 18Z"
-      fill="#34A853"
-    />
-    <path
-      d="M3.96409 10.71C3.78409 10.17 3.68182 9.59318 3.68182 9C3.68182 8.40682 3.78409 7.83 3.96409 7.29V4.95818H0.957275C0.347727 6.17318 0 7.54772 0 9C0 10.4523 0.347727 11.8268 0.957275 13.0418L3.96409 10.71Z"
-      fill="#FBBC05"
-    />
-    <path
-      d="M9 3.57955C10.3214 3.57955 11.5077 4.03364 12.4405 4.92545L15.0218 2.34409C13.4632 0.891818 11.4259 0 9 0C5.48182 0 2.43818 2.01682 0.957275 4.95818L3.96409 7.29C4.67182 5.16273 6.65591 3.57955 9 3.57955Z"
-      fill="#EA4335"
-    />
-  </svg>
-);
-
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { login, localLogin, isAuthenticated } = useAuth();
+  const { login, localLogin, emailLogin } = useAuth();
   const { config } = useConfig();
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [localPassword, setLocalPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [touched, setTouched] = useState({});
 
   const googleClientId = useMemo(
     () => config.google_client_id || FALLBACK_GOOGLE_CLIENT_ID,
@@ -94,7 +72,9 @@ const LoginPage = () => {
         if (!result.success) {
           setMessage(result.error || '登录失败，请重试。');
         } else {
-          navigate('/dashboard', { replace: true });
+          const migration = await migrateGuestWins(apiService);
+          if (migration.migrated > 0 && result.user?.id) localStorage.setItem(`little-wins:onboarded:user:${result.user.id}`, 'true');
+          navigate('/dashboard?period=today', { replace: true });
         }
       } catch (error) {
         console.error('Login with Google failed.', error);
@@ -109,16 +89,10 @@ const LoginPage = () => {
 
 
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/dashboard', { replace: true });
-    }
-  }, [isAuthenticated, navigate]);
-
-  useEffect(() => {
-    if (!config.enable_google_oauth && !config.local_login_enabled) {
+    if (!config.enable_google_oauth && !config.enable_email_auth && !config.local_login_enabled) {
       setMessage('服务尚未配置登录方式。请设置本地访问密码，或明确开启仅限可信网络的免密模式。');
     }
-  }, [config.enable_google_oauth, config.local_login_enabled]);
+  }, [config.enable_email_auth, config.enable_google_oauth, config.local_login_enabled]);
 
 
   const initializeGoogle = useCallback(() => {
@@ -227,118 +201,75 @@ const LoginPage = () => {
     setIsLoading(true);
     setMessage('');
     const result = await localLogin(localPassword);
-    if (result.success) navigate('/dashboard', { replace: true });
+    if (result.success) {
+      const migration = await migrateGuestWins(apiService);
+      if (migration.migrated > 0 && result.user?.id) localStorage.setItem(`little-wins:onboarded:user:${result.user.id}`, 'true');
+      navigate('/dashboard?period=today', { replace: true });
+    }
     else setMessage(result.error || '进入失败，请检查本地访问密码。');
     setIsLoading(false);
   }, [localLogin, localPassword, navigate]);
 
-  const isSelfHost = !config.enable_google_oauth;
+  const handleEmailContinue = useCallback(async (event) => {
+    event.preventDefault();
+    setTouched({ email: true, password: true });
+    if (!email.trim() || !password || isLoading) return;
+    setIsLoading(true);
+    setMessage('');
+    const result = await emailLogin({ email: email.trim(), password });
+    if (result.success) {
+      const migration = await migrateGuestWins(apiService);
+      if (migration.migrated > 0 && result.user?.id) localStorage.setItem(`little-wins:onboarded:user:${result.user.id}`, 'true');
+      navigate('/dashboard?period=today', { replace: true });
+    } else {
+      setMessage(result.error || '邮箱或密码不正确，请检查后重试。');
+    }
+    setIsLoading(false);
+  }, [email, emailLogin, isLoading, navigate, password]);
 
   return (
-    <div className="login-page">
-      <div className="login-page__card" style={{ maxWidth: '420px', padding: '3rem 2rem' }}>
-        <div style={{ marginBottom: '0.5rem' }}>
-          <h1 className="login-page__brand-title" style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            gap: '0.5rem',
-            marginBottom: '0.75rem'
-          }}>
-            <span style={{ display: 'grid', placeItems: 'center', width: '1.4em', height: '1.4em', color: '#e99380', background: '#fae9e4', borderRadius: '50%' }}><Sparkles size={18} /></span>
-            小小做到
-          </h1>
-          <p className="login-page__brand-subtitle" style={{ marginBottom: 0 }}>每一个做到，都值得被看见。</p>
-        </div>
-
-        <div style={{ marginTop: '0.5rem' }}>
-          <p className="login-page__description" style={{ marginBottom: '1.5rem', fontSize: '0.925rem' }}>
-            {isSelfHost
-              ? '继续进入你的微光板，已有记录会被完整保留。'
-              : '登录后，继续收藏那些已经发生的努力。'}
-          </p>
-
-          {message && <p className="login-page__message" style={{ marginBottom: '1rem' }}>{message}</p>}
-
-          {isSelfHost && config.local_login_requires_password && (
-            <input
-              type="password"
-              value={localPassword}
-              onChange={(event) => setLocalPassword(event.target.value)}
-              onKeyDown={(event) => event.key === 'Enter' && handleSelfHostContinue()}
-              placeholder="输入本地访问密码"
-              autoComplete="current-password"
-              aria-label="本地访问密码"
-              style={{ width: '100%', boxSizing: 'border-box', marginBottom: '12px', padding: '12px 14px', border: '1px solid var(--border)', borderRadius: '12px', background: 'var(--surface)', color: 'var(--text)' }}
-            />
-          )}
-
-          {isSelfHost ? (
-            <button
-              type="button"
-              className="login-page__button"
-              onClick={handleSelfHostContinue}
-              disabled={!config.local_login_enabled || isLoading || (config.local_login_requires_password && !localPassword)}
-            >
-              {isLoading ? '正在进入…' : '继续'}
+    <main className="account-journey account-journey--login">
+      <header>
+        <Link className="account-brand" to="/"><span><Sparkles size={17} /></span><strong>小小做到</strong><i>/</i><b>LOGIN</b></Link>
+        <Link to="/start">先体验</Link>
+      </header>
+      <aside>
+        <p className="account-kicker">欢迎回来</p>
+        <h2>继续看见，那些你已经做到的事。</h2>
+        <p>如果这台设备上还有未迁移的小胜利，登录后会自动把它们带回你的看板。</p>
+        <small><Lock /> 密码只用于验证账户，不会以明文保存。</small>
+      </aside>
+      <div className="account-workspace">
+        <form className="account-form" onSubmit={handleEmailContinue} noValidate>
+          <p className="account-kicker">登录</p>
+          <h1>打开你的微光板</h1>
+          {config.enable_email_auth ? <>
+            <div className={`account-field ${touched.email && !email.trim() ? 'is-error' : ''}`}>
+              <label htmlFor="login-email">邮箱地址</label>
+              <input id="login-email" type="email" autoComplete="email" value={email} aria-invalid={Boolean(touched.email && !email.trim())} onBlur={() => setTouched((value) => ({ ...value, email: true }))} onChange={(event) => setEmail(event.target.value)} />
+              <small>{touched.email && !email.trim() ? '请填写注册时使用的邮箱地址。' : '使用创建账户时填写的邮箱。'}</small>
+            </div>
+            <div className={`account-field ${touched.password && !password ? 'is-error' : ''}`}>
+              <label htmlFor="login-password">账户密码</label>
+              <input id="login-password" type="password" autoComplete="current-password" value={password} aria-invalid={Boolean(touched.password && !password)} onBlur={() => setTouched((value) => ({ ...value, password: true }))} onChange={(event) => setPassword(event.target.value)} />
+              <small>{touched.password && !password ? '请输入账户密码。' : '密码区分大小写。'}</small>
+            </div>
+            {message ? <p className="account-error" role="alert">{message}</p> : null}
+            <button className="account-button account-button--primary" type="submit" disabled={!email.trim() || !password || isLoading}>
+              {isLoading ? <><Loader2 className="account-spinner" />正在登录</> : <>登录并打开看板 <ArrowRight /></>}
             </button>
-          ) : (
-            <button
-              type="button"
-              className="login-page__button login-page__button--google"
-              onClick={handleGoogleLogin}
-              disabled={isLoading}
-              style={{
-                background: 'white',
-                color: '#3c4043',
-                border: '1px solid #dadce0',
-                fontWeight: '500',
-                fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '12px',
-                padding: '10px 24px',
-                transition: 'background-color 0.2s, box-shadow 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                if (!isLoading) {
-                  e.currentTarget.style.backgroundColor = '#f8f9fa';
-                  e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(60,64,67,.3), 0 1px 3px 1px rgba(60,64,67,.15)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'white';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              <span aria-hidden="true" style={{ display: 'flex', alignItems: 'center' }}>
-                {isLoading ? <LoadingSpinner /> : <GoogleIcon />}
-              </span>
-              <span>{isLoading ? '正在登录…' : '使用 Google 登录'}</span>
-            </button>
-          )}
+            <p className="account-inline-link">还没有账户？<Link to="/start">先记录一件小胜利</Link></p>
+          </> : null}
 
-          <div className="login-page__footer" style={{ 
-            marginTop: '1.75rem', 
-            fontSize: '0.8rem', 
-            opacity: 0.6,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.5rem'
-          }}>
-            <Lock size={12} aria-hidden="true" style={{ flexShrink: 0 }} />
-            <span>
-              {isSelfHost
-                ? (config.local_login_requires_password ? '访问密码只会发送到你自己的服务。' : '免密模式仅适合本机或可信私有网络。')
-                : 'Google 账户仅用于身份验证。'}
-            </span>
-          </div>
-          <p style={{ margin: '12px 0 0', textAlign: 'center', fontSize: '.72rem' }}><Link to="/privacy" style={{ color: 'inherit' }}>隐私与使用约定</Link></p>
-        </div>
+          {config.enable_google_oauth ? <button type="button" className="account-button account-button--quiet account-login-alternative" onClick={handleGoogleLogin} disabled={isLoading}>{isLoading ? <Loader2 className="account-spinner" /> : <Sparkles />}使用 Google 登录</button> : null}
+
+          {config.local_login_enabled ? <div className="account-local-login">
+            {config.local_login_requires_password ? <div className="account-field"><label htmlFor="local-password">本地访问密码</label><input id="local-password" type="password" value={localPassword} onChange={(event) => setLocalPassword(event.target.value)} autoComplete="current-password" /><small>仅发送到你自己的服务。</small></div> : null}
+            <button type="button" className="account-button account-button--quiet" onClick={handleSelfHostContinue} disabled={isLoading || (config.local_login_requires_password && !localPassword)}>进入自托管空间</button>
+          </div> : null}
+        </form>
       </div>
-    </div>
+    </main>
   );
 };
 

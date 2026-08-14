@@ -26,6 +26,15 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(readStoredToken);
 
+  const persistSession = useCallback((response) => {
+    const { token: jwtToken, user: userData } = response || {};
+    if (!jwtToken || !userData) throw new Error('登录响应不完整，请重试。');
+    localStorage.setItem(TOKEN_KEY, jwtToken);
+    setToken(jwtToken);
+    setUser(userData);
+    apiService.setAuthToken(jwtToken);
+  }, []);
+
   const clearSession = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(LEGACY_TOKEN_KEY);
@@ -48,20 +57,14 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       const response = await apiService.localLogin(password);
-      const { token: jwtToken, user: userData } = response;
-      if (jwtToken) {
-        localStorage.setItem(TOKEN_KEY, jwtToken);
-        setToken(jwtToken);
-        setUser(userData);
-        apiService.setAuthToken(jwtToken);
-      }
-      return { success: true };
+      persistSession(response);
+      return { success: true, user: response.user };
     } catch (error) {
       return { success: false, error: error.message || '进入失败，请检查本地访问密码。' };
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [persistSession]);
 
   const verifyToken = useCallback(async () => {
     try {
@@ -96,14 +99,36 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       const response = await apiService.googleAuth(googleToken);
-      const { token: jwtToken, user: userData } = response;
-      localStorage.setItem(TOKEN_KEY, jwtToken);
-      setToken(jwtToken);
-      setUser(userData);
-      apiService.setAuthToken(jwtToken);
-      return { success: true };
+      persistSession(response);
+      return { success: true, user: response.user };
     } catch (error) {
       return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const emailLogin = async (credentials) => {
+    try {
+      setLoading(true);
+      const response = await apiService.loginWithEmail(credentials);
+      persistSession(response);
+      return { success: true, user: response.user };
+    } catch (error) {
+      return { success: false, error: error.message || '邮箱或密码不正确。' };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const register = async (account) => {
+    try {
+      setLoading(true);
+      const response = await apiService.registerWithEmail(account);
+      persistSession(response);
+      return { success: true, user: response.user };
+    } catch (error) {
+      return { success: false, error: error.message || '暂时无法创建账户。' };
     } finally {
       setLoading(false);
     }
@@ -113,6 +138,8 @@ export const AuthProvider = ({ children }) => {
     user,
     loading,
     login,
+    emailLogin,
+    register,
     localLogin,
     logout,
     isAuthenticated: !!user

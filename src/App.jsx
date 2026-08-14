@@ -9,6 +9,7 @@ import AboutPage from './views/AboutPage';
 import LandingPage from './views/LandingPage';
 import NotFound from './views/NotFound';
 import PrivacyPage from './views/PrivacyPage';
+import { FirstWinPage, RegisterPage } from './features/account/components/AccountJourney';
 
 function App() {
   return (
@@ -20,6 +21,8 @@ function App() {
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/privacy" element={<PrivacyPage />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/start" element={<FirstWinPage />} />
+                <Route path="/register" element={<RegisterPage />} />
                 <Route
                   path="/dashboard"
                   element={

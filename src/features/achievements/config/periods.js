@@ -2,7 +2,7 @@ export const PERIODS = [
   { key: 'today', label: '今日', title: 'TODAY', rangeLabel: '今天' },
   { key: 'week', label: '本周', title: 'WEEK', rangeLabel: '本周' },
   { key: 'month', label: '本月', title: 'MONTH', rangeLabel: '本月' },
-  { key: 'journey', label: '旅程', title: 'JOURNEY', rangeLabel: '最近六个月' },
+  { key: 'journey', label: '半年', title: 'HALF YEAR', rangeLabel: '最近六个月' },
   { key: 'year', label: '今年', title: 'YEAR', rangeLabel: '今年' },
 ];
 

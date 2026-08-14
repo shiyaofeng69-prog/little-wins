@@ -109,6 +109,7 @@ class ConfigData:
 
     # Feature flags
     ENABLE_GOOGLE_OAUTH: bool
+    ENABLE_EMAIL_AUTH: bool
     ENABLE_MOOD_MUSIC: bool
     ENABLE_LEGACY_FEATURES: bool
 
@@ -142,6 +143,7 @@ def _load_config_from_env() -> ConfigData:
     """
 
     enable_google = is_truthy(os.getenv("ENABLE_GOOGLE_OAUTH"))
+    enable_email_auth = is_truthy(os.getenv("ENABLE_EMAIL_AUTH", "1"))
     enable_mood_music = is_truthy(os.getenv("ENABLE_MOOD_MUSIC"))
     enable_legacy_features = is_truthy(os.getenv("ENABLE_LEGACY_FEATURES"))
     # Web3 removed
@@ -168,6 +170,7 @@ def _load_config_from_env() -> ConfigData:
     return ConfigData(
         PORT=port,
         ENABLE_GOOGLE_OAUTH=enable_google,
+        ENABLE_EMAIL_AUTH=enable_email_auth,
         ENABLE_MOOD_MUSIC=enable_mood_music,
         ENABLE_LEGACY_FEATURES=enable_legacy_features,
         GOOGLE_CLIENT_ID=os.getenv("GOOGLE_CLIENT_ID"),
@@ -205,6 +208,7 @@ def config_to_public_dict(cfg: ConfigData) -> Dict[str, Any]:
     """
     return {
         "enable_google_oauth": bool(cfg.ENABLE_GOOGLE_OAUTH),
+        "enable_email_auth": bool(cfg.ENABLE_EMAIL_AUTH),
         "enable_mood_music": bool(cfg.ENABLE_MOOD_MUSIC),
         "local_login_requires_password": bool(cfg.LOCAL_ACCESS_PASSWORD),
         "passwordless_local_login": bool(cfg.ALLOW_PASSWORDLESS_LOCAL_LOGIN),

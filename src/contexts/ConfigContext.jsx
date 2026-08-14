@@ -12,6 +12,7 @@ export const useConfig = () => {
 export const ConfigProvider = ({ children }) => {
   const [config, setConfig] = useState({
     enable_google_oauth: false,
+    enable_email_auth: true,
     enable_mood_music: false,
     local_login_requires_password: false,
     passwordless_local_login: false,

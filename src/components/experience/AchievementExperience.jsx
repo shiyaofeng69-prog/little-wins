@@ -49,7 +49,7 @@ function AchievementHeader({ period, setPeriod, onCompose, isSettings }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const { config } = useConfig();
-  const canLogout = config.enable_google_oauth || config.local_login_requires_password;
+  const canLogout = config.enable_email_auth || config.enable_google_oauth || config.local_login_requires_password;
   const current = PERIODS.find((item) => item.key === period) || PERIODS[0];
   return (
     <header className={`win-header ${isSettings ? 'is-settings' : ''}`}>

@@ -9,6 +9,7 @@ def test_config_endpoint_client():
     data = resp.get_json()
     assert set(data.keys()) == {
         "enable_google_oauth",
+        "enable_email_auth",
         "enable_mood_music",
         "google_client_id",
         "local_login_enabled",

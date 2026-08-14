@@ -1,4 +1,7 @@
+import hashlib
+import sqlite3
 from typing import Optional, Dict
+from werkzeug.security import check_password_hash, generate_password_hash
 from api.database import MoodDatabase
 
 
@@ -18,6 +21,8 @@ class UserService:
             self.db.update_user_last_login(user["id"])
             return user
         else:
+            if self.db.get_user_by_email(email):
+                raise ValueError("ACCOUNT_EXISTS")
             # Create new user
             user_id = self.db.create_user(google_id, email, name, avatar_url)
             return self.db.get_user_by_id(user_id)
@@ -32,6 +37,30 @@ class UserService:
 
     def revoke_sessions(self, user_id: int) -> bool:
         return self.db.revoke_user_sessions(user_id)
+
+    def register_email_user(self, email: str, password: str, name: str) -> Dict:
+        synthetic_id = "email:" + hashlib.sha256(email.encode("utf-8")).hexdigest()
+        password_hash = generate_password_hash(
+            password,
+            method="pbkdf2:sha256:1000000",
+        )
+        try:
+            return self.db.create_email_user(
+                synthetic_id=synthetic_id,
+                email=email,
+                name=name,
+                password_hash=password_hash,
+            )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("ACCOUNT_EXISTS") from exc
+
+    def authenticate_email_user(self, email: str, password: str) -> Optional[Dict]:
+        user = self.db.get_user_by_email(email)
+        password_hash = user.get("password_hash") if user else None
+        if not user or not password_hash or not check_password_hash(password_hash, password):
+            return None
+        self.db.update_user_last_login(user["id"])
+        return self.db.get_user_by_id(user["id"])
 
     # New OAuth handler with idempotent upsert
     def handle_oauth_login(

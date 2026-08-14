@@ -3,6 +3,7 @@ from werkzeug.exceptions import HTTPException
 import os
 import requests
 import hmac
+import re
 from jose import jwt, JWTError
 from datetime import datetime, timedelta, timezone
 from api.services.user_service import UserService
@@ -11,8 +12,106 @@ from api.utils.auth_middleware import decode_access_token, get_current_user_id, 
 from api.config import get_config
 
 
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _email(value):
+    if not isinstance(value, str):
+        raise ValueError("Email address is required")
+    normalized = value.strip().lower()
+    if len(normalized) > 254 or not EMAIL_PATTERN.fullmatch(normalized):
+        raise ValueError("Enter a valid email address")
+    return normalized
+
+
+def _password(value):
+    if not isinstance(value, str):
+        raise ValueError("Password is required")
+    if len(value) < 12:
+        raise ValueError("Password must be at least 12 characters")
+    if len(value) > 128:
+        raise ValueError("Password must be 128 characters or fewer")
+    return value
+
+
+def _display_name(value, email):
+    if value is None or value == "":
+        return email.split("@", 1)[0][:60]
+    if not isinstance(value, str):
+        raise ValueError("Name must be a string")
+    normalized = " ".join(value.split())
+    if not normalized or len(normalized) > 60:
+        raise ValueError("Name must be between 1 and 60 characters")
+    return normalized
+
+
+def _public_user(user):
+    return {
+        "id": user["id"],
+        "name": user["name"],
+        "email": user["email"],
+        "avatar_url": user.get("avatar_url"),
+    }
+
+
 def create_auth_routes(user_service: UserService):
     auth_bp = Blueprint("auth", __name__)
+
+    @auth_bp.route("/auth/email/register", methods=["POST"])
+    @rate_limit(max_requests=5, window_minutes=1)
+    def email_register():
+        cfg = get_config()
+        if not cfg.ENABLE_EMAIL_AUTH:
+            return jsonify({"error": "Email registration is disabled"}), 404
+        try:
+            data = request.get_json(silent=True)
+            if not isinstance(data, dict):
+                return jsonify({"error": "JSON object required"}), 400
+            unknown = set(data) - {"email", "password", "name"}
+            if unknown:
+                return jsonify({"error": f"Unknown fields: {', '.join(sorted(unknown))}"}), 400
+            email = _email(data.get("email"))
+            password = _password(data.get("password"))
+            name = _display_name(data.get("name"), email)
+            user = user_service.register_email_user(email, password, name)
+            token = generate_jwt_token(user["id"], user.get("session_version", 0))
+            return jsonify({"token": token, "user": _public_user(user)}), 201
+        except ValueError as exc:
+            if str(exc) == "ACCOUNT_EXISTS":
+                return jsonify({"error": "An account already exists for this email"}), 409
+            return jsonify({"error": str(exc)}), 400
+        except HTTPException:
+            raise
+        except Exception:
+            current_app.logger.exception("Email registration failed")
+            return jsonify({"error": "Registration failed"}), 500
+
+    @auth_bp.route("/auth/email/login", methods=["POST"])
+    @rate_limit(max_requests=10, window_minutes=1)
+    def email_login():
+        cfg = get_config()
+        if not cfg.ENABLE_EMAIL_AUTH:
+            return jsonify({"error": "Email login is disabled"}), 404
+        try:
+            data = request.get_json(silent=True)
+            if not isinstance(data, dict):
+                return jsonify({"error": "JSON object required"}), 400
+            if set(data) - {"email", "password"}:
+                return jsonify({"error": "Only email and password are accepted"}), 400
+            email = _email(data.get("email"))
+            password = _password(data.get("password"))
+            user = user_service.authenticate_email_user(email, password)
+            if not user:
+                return jsonify({"error": "Email or password is incorrect"}), 401
+            token = generate_jwt_token(user["id"], user.get("session_version", 0))
+            return jsonify({"token": token, "user": _public_user(user)}), 200
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except HTTPException:
+            raise
+        except Exception:
+            current_app.logger.exception("Email login failed")
+            return jsonify({"error": "Authentication failed"}), 500
 
     @auth_bp.route("/auth/google", methods=["POST"])
     @rate_limit(max_requests=10, window_minutes=1)
@@ -56,15 +155,14 @@ def create_auth_routes(user_service: UserService):
             return jsonify(
                 {
                     "token": jwt_token,
-                    "user": {
-                        "id": user["id"],
-                        "name": user["name"],
-                        "email": user["email"],
-                        "avatar_url": user["avatar_url"],
-                    },
+                    "user": _public_user(user),
                 }
             )
 
+        except ValueError as exc:
+            if str(exc) == "ACCOUNT_EXISTS":
+                return jsonify({"error": "An account already exists for this email"}), 409
+            return jsonify({"error": "Authentication failed"}), 400
         except HTTPException:
             raise
         except Exception as e:
@@ -97,12 +195,7 @@ def create_auth_routes(user_service: UserService):
 
             return jsonify(
                 {
-                    "user": {
-                        "id": user["id"],
-                        "name": user["name"],
-                        "email": user["email"],
-                        "avatar_url": user["avatar_url"],
-                    }
+                    "user": _public_user(user)
                 }
             )
 

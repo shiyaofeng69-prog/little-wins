@@ -70,6 +70,12 @@ class DatabaseSchemaMixin(DatabaseConnectionMixin):
             conn.execute(
                 "ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0"
             )
+        if "password_hash" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+        if "auth_provider" not in columns:
+            conn.execute(
+                "ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'google'"
+            )
 
     def _create_mood_entries_table(self, conn: sqlite3.Connection) -> None:
         conn.execute(
@@ -249,6 +255,13 @@ class DatabaseSchemaMixin(DatabaseConnectionMixin):
             logger.warning("User metrics table creation failed (non-critical): %s", exc)
 
     def _create_database_indexes(self, conn: sqlite3.Connection) -> None:
+        try:
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_normalized "
+                "ON users(lower(email))"
+            )
+        except sqlite3.IntegrityError as exc:
+            logger.warning("Normalized email index was not created: %s", exc)
         try:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_mood_entries_date ON mood_entries(date)"

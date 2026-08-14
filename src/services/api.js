@@ -114,6 +114,20 @@ class ApiService {
     });
   }
 
+  async registerWithEmail({ name, email, password }) {
+    return this.request('/api/auth/email/register', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password }),
+    });
+  }
+
+  async loginWithEmail({ email, password }) {
+    return this.request('/api/auth/email/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  }
+
   async verifyToken(token) {
     return this.request('/api/auth/verify', {
       method: 'POST',

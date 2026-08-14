@@ -1,6 +1,14 @@
 [
   {
     "date": "2026-08-13",
+    "scope": "public-account-journey",
+    "macrostructure": "Workbench",
+    "theme": "Coral",
+    "enrichment": "none",
+    "brief": "Guest first win, account registration, and idempotent record migration"
+  },
+  {
+    "date": "2026-08-13",
     "scope": "app",
     "macrostructure": "Map / Diagram",
     "theme": "Coral",

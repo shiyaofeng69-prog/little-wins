@@ -6,6 +6,7 @@ def test_public_config_shape():
     public = config_to_public_dict(cfg)
     assert set(public.keys()) == {
         "enable_google_oauth",
+        "enable_email_auth",
         "enable_mood_music",
         "google_client_id",
         "local_login_requires_password",
